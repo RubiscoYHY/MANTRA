@@ -9,8 +9,8 @@ A multi-agent LLM framework for equity analysis, built on [TradingAgents](https:
 ## Installation
 
 ```bash
-git clone <this-repo>
-cd TradingAgents
+git clone https://github.com/RubiscoYHY/MANTRA.git
+cd MANTRA
 conda create -n mantra python=3.13
 conda activate mantra
 pip install -e .
