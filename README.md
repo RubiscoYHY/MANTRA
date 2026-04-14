@@ -97,7 +97,9 @@ MANTRA uses a dual-LLM architecture: a **deep-thinking** model for the manager l
 mantra
 ```
 
-The interactive CLI walks through seven steps: ticker, analysis date, output language, analyst team selection, research depth, quick-think LLM, and deep-think LLM. Provider and model are selected independently at each step.
+The interactive CLI walks through up to eight steps: ticker, analysis date, output language, analyst team selection, research depth, quick-think LLM, parallel execution toggle (local providers only), and deep-think LLM. Provider and model are selected independently at each step.
+
+When a local provider (Ollama or HuggingFace) is selected for the analyst layer, an additional step asks whether to run analysts in parallel. A red warning is displayed because concurrent local inference can exhaust GPU/CPU memory on consumer hardware. Cloud providers skip this step and run analysts in parallel automatically.
 
 To run a backtest:
 
