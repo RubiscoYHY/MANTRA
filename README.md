@@ -72,7 +72,7 @@ MANTRA uses a dual-LLM architecture: a **deep-thinking** model for the manager l
 ## CLI
 
 ```bash
-tradingagents
+mantra
 ```
 
 The interactive CLI walks through seven steps: ticker, analysis date, output language, analyst team selection, research depth, quick-think LLM, and deep-think LLM. Provider and model are selected independently at each step.
@@ -80,7 +80,7 @@ The interactive CLI walks through seven steps: ticker, analysis date, output lan
 To run a backtest:
 
 ```bash
-tradingagents --mode backtest
+mantra --mode backtest
 ```
 
 The backtest CLI prompts for ticker, date range, and model configuration, then runs day-by-day analysis. Results are saved automatically to `results/{TICKER}-{start}-{end}/`.
@@ -103,6 +103,9 @@ config["deep_think_provider"]  = "anthropic"
 config["deep_think_llm"]       = "claude-opus-4-6"
 config["quick_think_provider"] = "google"
 config["quick_think_llm"]      = "gemini-2.5-flash"
+# Analysts run in parallel by default for cloud providers.
+# Set to False to force sequential execution, or True to enable parallel even for local models.
+# config["parallel_analysts"] = False
 
 ta = TradingAgentsGraph(debug=True, config=config)
 _, decision = ta.propagate("NVDA", "2024-05-10")
@@ -206,6 +209,32 @@ _write_metrics_csv(values, "nvda_metrics.csv", rf_annual=0.05)
 ## Disclaimer
 
 This project is intended solely for academic research. Nothing in this repository constitutes financial, investment, or trading advice. Past simulated performance does not guarantee future results.
+
+---
+
+## Configuration Reference
+
+Key fields in `DEFAULT_CONFIG` (all optional — defaults shown):
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `deep_think_provider` | `"anthropic"` | Manager layer LLM provider |
+| `deep_think_llm` | `"claude-opus-4-6"` | Manager layer model name |
+| `quick_think_provider` | `"google"` | Analyst / researcher / trader layer provider |
+| `quick_think_llm` | `"gemini-3-flash-preview"` | Analyst layer model name |
+| `backend_url` | `None` | Base URL for OpenAI-compatible endpoints (Ollama, vLLM) |
+| `parallel_analysts` | `None` | `None` = auto-detect, `True` = force parallel, `False` = force sequential |
+| `max_debate_rounds` | `1` | Bull / Bear debate rounds |
+| `max_risk_discuss_rounds` | `1` | Risk team debate rounds |
+| `output_language` | `"English"` | Language for analyst reports and final decision |
+| `run_mode` | `"single"` | `"single"` for one-day analysis, `"backtest"` for multi-day |
+
+**`parallel_analysts` auto-detection:**
+- Cloud providers (`google`, `anthropic`, `openai`, `xai`, `openrouter`) → **parallel by default**: all 4 analysts (market / social / news / fundamentals) run concurrently in separate threads, each with its own isolated message history.
+- Local providers (`ollama`, `huggingface`) → **sequential by default**: concurrent local inference is hardware-limited and can cause contention.
+- Override anytime: `config["parallel_analysts"] = True` or `False`.
+
+> **Note:** The risk-analyst debate (Aggressive → Conservative → Neutral) always runs sequentially regardless of this setting. Each analyst must be able to rebut the previous speaker's argument within the same round, which requires the original sequential ordering.
 
 ---
 
