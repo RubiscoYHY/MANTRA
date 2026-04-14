@@ -35,7 +35,11 @@ FinBERT weights (~440 MB) are downloaded automatically on first run and cached a
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and fill in the keys for your chosen providers:
+There are two ways to supply API keys. Use whichever fits your workflow.
+
+**Option 1 — `.env` file (recommended for development)**
+
+Copy `.env.example` to `.env` and fill in the keys for your chosen providers. MANTRA loads this file automatically at startup via `python-dotenv`.
 
 ```bash
 cp .env.example .env
@@ -50,6 +54,24 @@ XAI_API_KEY=...                 # xAI (Grok)
 OPENROUTER_API_KEY=...          # OpenRouter
 ALPHA_VANTAGE_API_KEY=...       # Market data
 ```
+
+**Option 2 — Shell environment variables (useful for servers or CI)**
+
+Export the keys in your current shell session. These take effect immediately without any file:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...    # Claude (recommended for manager layer)
+export GOOGLE_API_KEY=AIza...          # Gemini
+export OPENAI_API_KEY=sk-...           # OpenAI
+export HF_TOKEN=hf_...                 # HuggingFace Inference API
+export XAI_API_KEY=...                 # xAI (Grok)
+export OPENROUTER_API_KEY=...          # OpenRouter
+export ALPHA_VANTAGE_API_KEY=...       # Market data
+```
+
+To make these permanent, add the relevant `export` lines to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) and run `source ~/.zshrc` (or the equivalent for your shell).
+
+> **Note:** If both a `.env` file and a shell environment variable are set for the same key, the shell environment variable takes precedence.
 
 You only need keys for the providers you actually use. For fully local inference, Ollama requires no API key.
 
