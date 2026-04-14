@@ -34,8 +34,8 @@ from cli.stats_handler import StatsCallbackHandler
 console = Console()
 
 app = typer.Typer(
-    name="TradingAgents",
-    help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
+    name="MANTRA",
+    help="MANTRA CLI: Memory-Augmented Neural Trading Retrieval Agents",
     add_completion=True,  # Enable shell completion
 )
 
@@ -259,9 +259,9 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     # Header with welcome message
     layout["header"].update(
         Panel(
-            "[bold green]Welcome to TradingAgents CLI[/bold green]\n"
-            "[dim]© [Tauric Research](https://github.com/TauricResearch)[/dim]",
-            title="Welcome to TradingAgents",
+            "[bold green]Welcome to MANTRA[/bold green]\n"
+            "[dim]Memory-Augmented Neural Trading Retrieval Agents[/dim]",
+            title="MANTRA",
             border_style="green",
             padding=(1, 2),
             expand=True,
@@ -471,20 +471,19 @@ def get_user_selections():
 
     # Create welcome box content
     welcome_content = f"{welcome_ascii}\n"
-    welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
+    welcome_content += "[bold green]MANTRA: Memory-Augmented Neural Trading Retrieval Agents[/bold green]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
     welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
-    welcome_content += (
-        "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
-    )
+    welcome_content += "[dim]Built by Rubisco (github.com/RubiscoYHY)[/dim]\n"
+    welcome_content += "[dim]Based on TradingAgents by Tauric Research (github.com/TauricResearch)[/dim]"
 
     # Create and center the welcome box
     welcome_box = Panel(
         welcome_content,
         border_style="green",
         padding=(1, 2),
-        title="Welcome to TradingAgents",
-        subtitle="Multi-Agents LLM Financial Trading Framework",
+        title="Welcome to MANTRA",
+        subtitle="Memory-Augmented Neural Trading Retrieval Agents",
     )
     console.print(Align.center(welcome_box))
     console.print()
@@ -1437,9 +1436,14 @@ def run_analysis():
         )
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
-        # Update agent status to in_progress for the first analyst
-        first_analyst = f"{selections['analysts'][0].value.capitalize()} Analyst"
-        message_buffer.update_agent_status(first_analyst, "in_progress")
+        # Update agent status to in_progress for the analyst(s).
+        # In parallel mode all selected analysts run simultaneously.
+        if graph._parallel_analysts:
+            for _key in selected_analyst_keys:
+                message_buffer.update_agent_status(ANALYST_AGENT_NAMES[_key], "in_progress")
+        else:
+            first_analyst = f"{selections['analysts'][0].value.capitalize()} Analyst"
+            message_buffer.update_agent_status(first_analyst, "in_progress")
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
         # Create spinner text
