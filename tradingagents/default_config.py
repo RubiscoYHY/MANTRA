@@ -40,6 +40,12 @@ DEFAULT_CONFIG = {
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
     "max_recur_limit": 100,
+    # Parallel analyst execution.
+    # None  → auto: True for cloud providers, False for local (ollama / huggingface)
+    #         because running multiple local models concurrently is hardware-limited.
+    # True  → always parallel (use with caution on local models).
+    # False → always sequential.
+    "parallel_analysts": None,
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {

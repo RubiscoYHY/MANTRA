@@ -128,8 +128,25 @@ class TradingAgentsGraph:
         self.ticker = None
         self.log_states_dict = {}  # date to full state dict
 
+        # Determine whether to run analysts in parallel.
+        # Local providers (ollama, huggingface) are hardware-limited, so they
+        # default to sequential.  Cloud providers default to parallel.
+        # The "parallel_analysts" config key overrides the auto-detection:
+        #   None  → auto (True for cloud, False for local)
+        #   True  → always parallel
+        #   False → always sequential
+        _LOCAL_PROVIDERS = {"ollama", "huggingface"}
+        _quick_provider = self.config.get("quick_think_provider", "google").lower()
+        _pa_cfg = self.config.get("parallel_analysts", None)
+        if _pa_cfg is None:
+            self._parallel_analysts = _quick_provider not in _LOCAL_PROVIDERS
+        else:
+            self._parallel_analysts = bool(_pa_cfg)
+
         # Set up the graph
-        self.graph = self.graph_setup.setup_graph(selected_analysts)
+        self.graph = self.graph_setup.setup_graph(
+            selected_analysts, parallel=self._parallel_analysts
+        )
 
     # Providers that use an OpenAI-compatible base URL (Ollama, OpenRouter, HuggingFace, etc.).
     # Cloud providers (anthropic, google) manage their own endpoints via SDK / env vars.
