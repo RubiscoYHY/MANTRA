@@ -250,6 +250,12 @@ def get_fundamentals(
     curr_date: Annotated[str, "current date (not used for yfinance)"] = None
 ):
     """Get company fundamentals overview from yfinance."""
+    from .backtest_cache import get_backtest_cache
+    _cache = get_backtest_cache()
+    if _cache.is_active():
+        cached = _cache.get_yf_fundamentals(ticker, curr_date or "")
+        if cached is not None:
+            return cached
     try:
         ticker_obj = yf.Ticker(ticker.upper())
         info = yf_retry(lambda: ticker_obj.info)
@@ -308,6 +314,12 @@ def get_balance_sheet(
     curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
     """Get balance sheet data from yfinance."""
+    from .backtest_cache import get_backtest_cache
+    _cache = get_backtest_cache()
+    if _cache.is_active():
+        cached = _cache.get_yf_balance_sheet(ticker, freq, curr_date)
+        if cached is not None:
+            return cached
     try:
         ticker_obj = yf.Ticker(ticker.upper())
 
@@ -340,6 +352,12 @@ def get_cashflow(
     curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
     """Get cash flow data from yfinance."""
+    from .backtest_cache import get_backtest_cache
+    _cache = get_backtest_cache()
+    if _cache.is_active():
+        cached = _cache.get_yf_cashflow(ticker, freq, curr_date)
+        if cached is not None:
+            return cached
     try:
         ticker_obj = yf.Ticker(ticker.upper())
 
@@ -372,6 +390,12 @@ def get_income_statement(
     curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
     """Get income statement data from yfinance."""
+    from .backtest_cache import get_backtest_cache
+    _cache = get_backtest_cache()
+    if _cache.is_active():
+        cached = _cache.get_yf_income_statement(ticker, freq, curr_date)
+        if cached is not None:
+            return cached
     try:
         ticker_obj = yf.Ticker(ticker.upper())
 
@@ -399,24 +423,32 @@ def get_income_statement(
 
 
 def get_insider_transactions(
-    ticker: Annotated[str, "ticker symbol of the company"]
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current trading date YYYY-MM-DD; filters out future transactions"] = None,
 ):
-    """Get insider transactions data from yfinance."""
+    """Get insider transactions data from yfinance, filtered to on-or-before curr_date."""
+    from .backtest_cache import get_backtest_cache
+    _cache = get_backtest_cache()
+    if _cache.is_active():
+        cached = _cache.get_yf_insider_transactions(ticker, curr_date)
+        if cached is not None:
+            return cached
     try:
+        from .backtest_cache import _filter_insider_df_by_date
         ticker_obj = yf.Ticker(ticker.upper())
         data = yf_retry(lambda: ticker_obj.insider_transactions)
-        
+
         if data is None or data.empty:
             return f"No insider transactions data found for symbol '{ticker}'"
-            
-        # Convert to CSV string for consistency with other functions
-        csv_string = data.to_csv()
-        
-        # Add header information
+
+        if curr_date:
+            data = _filter_insider_df_by_date(data, curr_date)
+            if data.empty:
+                return f"No insider transactions found for symbol '{ticker}' on or before {curr_date}"
+
         header = f"# Insider Transactions data for {ticker.upper()}\n"
         header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
-        return header + csv_string
-        
+        return header + data.to_csv()
+
     except Exception as e:
         return f"Error retrieving insider transactions for {ticker}: {str(e)}"

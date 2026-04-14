@@ -1,7 +1,9 @@
 import questionary
+from datetime import datetime as _dt
 from typing import List, Optional, Tuple, Dict
 
 from rich.console import Console
+from rich.panel import Panel
 
 from cli.models import AnalystType
 from tradingagents.llm_clients.model_catalog import get_model_options
@@ -76,8 +78,41 @@ def get_analysis_date() -> str:
     return date.strip()
 
 
-def select_analysts() -> List[AnalystType]:
-    """Select analysts using an interactive checkbox."""
+def select_analysts(
+    run_mode: str = "single",
+    analysis_date: str = None,
+) -> List[AnalystType]:
+    """Select analysts using an interactive checkbox.
+
+    All analysts including Social are always selectable.  When running in
+    backtest mode or past-date single-day mode a note is shown before the
+    checkbox informing the user that live social posts will be used instead
+    of historically accurate data for that date.
+    """
+    today = _dt.now().strftime("%Y-%m-%d")
+    social_live = run_mode == "single" and analysis_date == today
+
+    if not social_live:
+        if run_mode != "single":
+            context = "backtest mode"
+        else:
+            context = f"past-date single-day mode ({analysis_date})"
+        console.print(
+            Panel(
+                "[bold yellow]Note — Social Media Analyst[/bold yellow]\n\n"
+                "Reddit and StockTwits APIs only expose the most recent posts "
+                "and cannot be queried for a specific historical date.  If you "
+                "include the Social Media Analyst, it will receive today's live "
+                "sentiment instead of sentiment from the simulated date.\n\n"
+                "This is a current data-source limitation, not a design flaw. "
+                "Pairing MANTRA with a dedicated historical social-data pipeline "
+                "would fully unlock this analyst's value in backtests.\n\n"
+                f"[dim]Current mode: {context}[/dim]",
+                border_style="yellow",
+                padding=(1, 2),
+            )
+        )
+
     choices = questionary.checkbox(
         "Select Your [Analysts Team]:",
         choices=[

@@ -26,6 +26,7 @@ from rich.rule import Rule
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.agents.utils.social_data_tools import set_finbert_status_callback
+from tradingagents.dataflows.backtest_cache import get_backtest_cache
 from cli.models import AnalystType
 from cli.utils import *
 from cli.announcements import fetch_announcements, display_announcements
@@ -569,7 +570,7 @@ def get_user_selections():
             "Step 4: Analysts Team", "Select your LLM analyst agents for the analysis"
         )
     )
-    selected_analysts = select_analysts()
+    selected_analysts = select_analysts(run_mode=run_mode, analysis_date=start_date)
     console.print(
         f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
     )
@@ -1248,6 +1249,14 @@ def _run_backtest_mode(selections: dict, config: dict) -> None:
 
         console.print(f"  [dim]{len(trading_days)} trading days to process.[/dim]\n")
 
+        # Pre-fetch all market data once for this ticker's full backtest window.
+        # Agents query the cache (with per-day date filtering) instead of making
+        # repeated API calls — the date-filter interface prevents future data leakage.
+        _bt_cache = get_backtest_cache()
+        console.print(f"  [dim]Pre-fetching data for {ticker} ({start_date} → {end_date})…[/dim]")
+        _bt_cache.initialize(ticker, start_date, end_date)
+        console.print(f"  [dim]Pre-fetch complete.[/dim]\n")
+
         results_table = Table(
             title=f"{ticker} — Backtest Results",
             box=box.SIMPLE_HEAD,
@@ -1275,7 +1284,7 @@ def _run_backtest_mode(selections: dict, config: dict) -> None:
 
                 try:
                     final_state, signal_dict = graph.propagate(ticker, trade_date)
-                    actual_return = _get_next_day_return(ticker, trade_date)
+                    actual_return = _bt_cache.get_next_day_return(trade_date)
                     graph.reflect_and_remember(actual_return)
 
                     signal     = signal_dict.get("signal", "HOLD")
@@ -1315,6 +1324,7 @@ def _run_backtest_mode(selections: dict, config: dict) -> None:
                 progress.advance(task)
 
         console.print(results_table)
+        _bt_cache.clear()
 
     # Save per-ticker CSV into results/{ticker}-{start_date}-{end_date}/
     if all_results:

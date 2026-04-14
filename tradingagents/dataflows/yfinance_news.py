@@ -64,6 +64,12 @@ def get_news_yfinance(
     Returns:
         Formatted string containing news articles
     """
+    from .backtest_cache import get_backtest_cache
+    _cache = get_backtest_cache()
+    if _cache.is_active():
+        cached = _cache.get_yf_news(ticker, start_date, end_date)
+        if cached is not None:
+            return cached
     try:
         stock = yf.Ticker(ticker)
         news = yf_retry(lambda: stock.get_news(count=20))
@@ -120,6 +126,12 @@ def get_global_news_yfinance(
     Returns:
         Formatted string containing global news articles
     """
+    from .backtest_cache import get_backtest_cache
+    _cache = get_backtest_cache()
+    if _cache.is_active():
+        cached = _cache.get_yf_global_news(curr_date, look_back_days, limit)
+        if cached is not None:
+            return cached
     # Search queries for macro/global news
     search_queries = [
         "stock market economy",
