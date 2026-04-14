@@ -592,10 +592,37 @@ def get_user_selections():
     )
     analyst_llm = select_analyst_llm_config()
 
-    # Step 7: Manager LLM (deep-thinking: research manager, portfolio manager)
+    # Step 7: Parallel execution — only asked for local providers
+    _LOCAL_PROVIDERS = {"ollama", "huggingface"}
+    parallel_analysts = None  # None = auto-detect (cloud providers run parallel by default)
+    if analyst_llm["provider"] in _LOCAL_PROVIDERS:
+        console.print(
+            Panel(
+                "[bold]Step 7: Parallel Analyst Execution[/bold]\n"
+                "[dim]Choose whether to run all analysts concurrently[/dim]\n\n"
+                "[bold red]WARNING: Running local models in parallel launches multiple "
+                "inference threads simultaneously. This can saturate your GPU/CPU memory "
+                "and may cause OOM errors or severe slowdowns on consumer hardware. "
+                "Only enable this if you have sufficient VRAM/RAM to run multiple model "
+                "instances at once (e.g. multi-GPU server, high-RAM workstation).[/bold red]",
+                border_style="red",
+                padding=(1, 2),
+            )
+        )
+        import questionary as _q
+        _choice = _q.select(
+            "Run analysts in parallel?",
+            choices=[
+                _q.Choice("No  — sequential (safe default for local models)", False),
+                _q.Choice("Yes — parallel  (WARNING: high hardware demand)",  True),
+            ],
+        ).ask()
+        parallel_analysts = _choice
+
+    # Step 8: Manager LLM (deep-thinking: research manager, portfolio manager)
     console.print(
         create_question_box(
-            "Step 7: Manager LLM",
+            "Step 8: Manager LLM",
             "Select the provider and model for manager agents\n"
             "(Research Manager, Portfolio Manager)",
         )
@@ -631,6 +658,7 @@ def get_user_selections():
         "openai_reasoning_effort": openai_reasoning_effort,
         "anthropic_effort": manager_llm["anthropic_effort"],
         "output_language": output_language,
+        "parallel_analysts": parallel_analysts,
     }
 
 
@@ -1336,6 +1364,7 @@ def run_analysis():
     config["openai_reasoning_effort"] = selections.get("openai_reasoning_effort")
     config["anthropic_effort"] = selections.get("anthropic_effort")
     config["output_language"] = selections.get("output_language", "English")
+    config["parallel_analysts"] = selections.get("parallel_analysts")  # None = auto-detect
 
     # Branch: backtest modes bypass the single-day streaming path entirely.
     if selections["run_mode"] != "single":
