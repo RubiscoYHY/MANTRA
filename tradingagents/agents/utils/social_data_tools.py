@@ -39,6 +39,19 @@ try:
 except ImportError:
     _FINBERT_AVAILABLE = False
 
+
+def _detect_device() -> str:
+    """Return the best available torch device: cuda, mps, or cpu."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+        if torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
 # Optional callback invoked with "in_progress" / "completed" around FinBERT inference.
 # Registered externally (e.g. CLI) via set_finbert_status_callback().
 _finbert_status_callback = None
@@ -230,11 +243,12 @@ def get_reddit_posts(
 
 @lru_cache(maxsize=1)
 def _get_finbert_pipeline():
-    """Lazy-load FinBERT. Cached after first call (model stays in memory)."""
+    """Lazy-load FinBERT on the best available device. Cached after first call."""
     return _hf_pipeline(
         "text-classification",
         model="ProsusAI/finbert",
         top_k=None,         # return scores for all three labels
+        device=_detect_device(),
     )
 
 

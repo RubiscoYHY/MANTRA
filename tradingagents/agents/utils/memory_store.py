@@ -48,6 +48,19 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _detect_device() -> str:
+    """Return the best available torch device: cuda, mps, or cpu."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+        if torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+
 class _BGEEmbeddingFunction:
     """
     ChromaDB embedding backend using BAAI/bge-base-en-v1.5.
@@ -65,9 +78,9 @@ class _BGEEmbeddingFunction:
 
     _QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
-    def __init__(self, device: str = "cpu") -> None:
+    def __init__(self, device: Optional[str] = None) -> None:
         from sentence_transformers import SentenceTransformer
-        self._model = SentenceTransformer("BAAI/bge-base-en-v1.5", device=device)
+        self._model = SentenceTransformer("BAAI/bge-base-en-v1.5", device=device or _detect_device())
 
     def __call__(self, input):  # noqa: A002
         """Encode documents without prefix. Called by ChromaDB during upsert."""

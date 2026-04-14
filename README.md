@@ -24,6 +24,15 @@ pip install transformers torch
 
 FinBERT weights (~440 MB) are downloaded automatically on first run and cached at `~/.cache/huggingface/`. If you skip this step, the Social Media Analyst will fall back to passing raw posts directly to the LLM.
 
+**GPU acceleration (CUDA / Apple Silicon):** MANTRA automatically detects the best available device at runtime — `cuda` on NVIDIA GPUs, `mps` on Apple M-series, `cpu` otherwise. FinBERT inference and BGE embeddings both use this device without any manual configuration.
+
+> **Windows (NVIDIA GPU):** `pip install torch` fetches the CPU-only wheel by default on Windows. To enable CUDA, install the GPU-enabled build from [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/) and select your CUDA version. Example for CUDA 12.1:
+> ```powershell
+> pip install torch --index-url https://download.pytorch.org/whl/cu121
+> pip install transformers
+> ```
+> Everything else in the setup is identical — `cp` is a valid alias in PowerShell and works as shown above.
+
 ### Environment Variables
 
 Copy `.env.example` to `.env` and fill in the keys for your chosen providers:
@@ -114,7 +123,23 @@ The first element `state` is the full LangGraph state dict containing all interm
 
 ### Google Colab / Jupyter
 
-In a notebook environment, set `debug=False` to suppress the live-streaming output, and use `load_dotenv()` or set keys directly via `os.environ` before initializing the graph:
+**Setup (run once at the top of your notebook):**
+
+```python
+# Clone and install
+!git clone https://github.com/RubiscoYHY/MANTRA.git
+%cd MANTRA
+!pip install -e . -q
+
+# Install transformers — torch is already CUDA-enabled in Colab, so skip reinstalling it
+!pip install transformers -q
+```
+
+Colab runtimes (T4, A100, L4) ship with a CUDA-enabled PyTorch pre-installed. MANTRA's auto-detection picks this up automatically — FinBERT inference and BGE embeddings will run on the GPU without any extra configuration.
+
+**API keys and usage:**
+
+Set keys directly via `os.environ` before initializing the graph (`.env` files are not available in Colab). Set `debug=False` to suppress the live-streaming output:
 
 ```python
 import os
@@ -134,6 +159,8 @@ ta = TradingAgentsGraph(debug=False, config=config)
 _, decision = ta.propagate("AAPL", "2024-03-15")
 print(decision["signal"], decision["confidence"])
 ```
+
+> **Note:** If you restart the Colab runtime, re-run the `%cd MANTRA` cell before importing — Python's working directory resets on restart.
 
 ### Backtesting
 
