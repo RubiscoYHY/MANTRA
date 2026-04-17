@@ -29,6 +29,7 @@ formatted post listing so the analyst can still run without crashing.
 
 import time
 import requests
+from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Annotated
 from langchain_core.tools import tool
@@ -78,6 +79,7 @@ _REQUEST_TIMEOUT = 10
 _REDDIT_COOLDOWN = 3        # seconds between subreddit requests
 _REDDIT_SUBREDDITS = ["wallstreetbets", "stocks", "investing"]
 _FINBERT_TEXT_LIMIT = 512   # safe char limit for BERT's 512-token max
+_SOCIAL_RECENCY_DAYS = 3    # posts older than this are discarded before FinBERT
 
 # Module-level cache: keyed by ticker so each analysis run fetches once.
 # The analyst node may be re-entered 2-3 times within one propagate() call;
@@ -89,39 +91,82 @@ _posts_cache: dict[str, list[dict]] = {}
 # Internal fetch helpers (return structured dicts, not formatted strings)
 # ---------------------------------------------------------------------------
 
-def _fetch_stocktwits_raw(ticker: str, limit: int = 30) -> list[dict]:
-    """Fetch StockTwits messages. Returns list of post dicts."""
-    url = f"https://api.stocktwits.com/api/2/streams/symbol/{ticker}.json"
-    try:
-        resp = requests.get(
-            url, params={"limit": min(limit, 30)},
-            headers=_HEADERS, timeout=_REQUEST_TIMEOUT
-        )
-    except requests.RequestException:
-        return []
+def _fetch_stocktwits_raw(ticker: str, max_pages: int = 10) -> list[dict]:
+    """
+    Fetch StockTwits messages for the last _SOCIAL_RECENCY_DAYS days.
 
-    if resp.status_code != 200:
-        return []
+    Paginates backwards using the cursor.max message-ID until the oldest post
+    in a batch predates the recency window or there are no more pages.
+    Each page returns up to 30 messages (StockTwits API hard limit).
+    """
+    base_url = f"https://api.stocktwits.com/api/2/streams/symbol/{ticker}.json"
+    cutoff = datetime.utcnow() - timedelta(days=_SOCIAL_RECENCY_DAYS)
 
-    try:
-        messages = resp.json().get("messages", [])
-    except ValueError:
-        return []
+    posts: list[dict] = []
+    params: dict = {"limit": 30}
 
-    posts = []
-    for msg in messages:
-        sentiment_obj = msg.get("entities", {}).get("sentiment")
-        native_sentiment = sentiment_obj.get("basic") if sentiment_obj else None
-        body = msg.get("body", "").replace("\n", " ").strip()
-        if not body:
-            continue
-        posts.append({
-            "text": body,
-            "source": "StockTwits",
-            "score": msg.get("likes", {}).get("total", 0),
-            "timestamp": msg.get("created_at", ""),
-            "native_sentiment": native_sentiment,   # bullish/bearish/None
-        })
+    for _ in range(max_pages):
+        try:
+            resp = requests.get(
+                base_url, params=params,
+                headers=_HEADERS, timeout=_REQUEST_TIMEOUT,
+            )
+        except requests.RequestException:
+            break
+
+        if resp.status_code == 429:
+            time.sleep(_REDDIT_COOLDOWN * 3)
+            break
+        if resp.status_code != 200:
+            break
+
+        try:
+            data = resp.json()
+            messages = data.get("messages", [])
+            cursor  = data.get("cursor", {})
+        except ValueError:
+            break
+
+        if not messages:
+            break
+
+        oldest_in_batch: datetime | None = None
+        for msg in messages:
+            body = msg.get("body", "").replace("\n", " ").strip()
+            if not body:
+                continue
+            ts_str = msg.get("created_at", "")
+            try:
+                post_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            except (ValueError, AttributeError):
+                post_dt = None
+
+            # Track the oldest timestamp in this batch for the exit check
+            if post_dt is not None:
+                if oldest_in_batch is None or post_dt < oldest_in_batch:
+                    oldest_in_batch = post_dt
+
+            # Only collect posts within the recency window
+            if post_dt is None or post_dt >= cutoff:
+                sentiment_obj = msg.get("entities", {}).get("sentiment")
+                native_sentiment = sentiment_obj.get("basic") if sentiment_obj else None
+                posts.append({
+                    "text": body,
+                    "source": "StockTwits",
+                    "score": msg.get("likes", {}).get("total", 0),
+                    "timestamp": ts_str,
+                    "native_sentiment": native_sentiment,   # bullish/bearish/None
+                })
+
+        # Stop if we've gone past the recency window or no more pages
+        if oldest_in_batch is not None and oldest_in_batch < cutoff:
+            break
+        if not cursor.get("more"):
+            break
+
+        # Advance cursor backwards in time
+        params = {"limit": 30, "max": cursor["max"]}
+
     return posts
 
 
@@ -175,15 +220,40 @@ def _fetch_reddit_raw(ticker: str, limit: int = 15) -> list[dict]:
     return posts
 
 
+def _filter_recent_posts(posts: list[dict], max_age_days: int = _SOCIAL_RECENCY_DAYS) -> list[dict]:
+    """
+    Drop posts outside the recency window.
+    Reddit timestamps are Unix epoch floats; StockTwits are ISO-8601 strings.
+    Posts with missing or unparseable timestamps are kept (benefit of the doubt).
+    """
+    cutoff = datetime.utcnow() - timedelta(days=max_age_days)
+    kept = []
+    for p in posts:
+        ts = p.get("timestamp", "")
+        if not ts:
+            kept.append(p)
+            continue
+        try:
+            if isinstance(ts, (int, float)):
+                post_dt = datetime.utcfromtimestamp(ts)
+            else:
+                post_dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).replace(tzinfo=None)
+            if post_dt >= cutoff:
+                kept.append(p)
+        except (ValueError, OSError, OverflowError):
+            kept.append(p)  # unparseable → keep
+    return kept
+
+
 def get_social_posts_cached(ticker: str) -> list[dict]:
     """
-    Return combined StockTwits + Reddit posts for a ticker.
-    Cached per ticker to avoid redundant fetches within one analysis run.
+    Return combined StockTwits + Reddit posts for a ticker, filtered to the
+    last _SOCIAL_RECENCY_DAYS days. Cached per ticker to avoid redundant
+    fetches within one analysis run.
     """
     if ticker not in _posts_cache:
-        _posts_cache[ticker] = (
-            _fetch_stocktwits_raw(ticker) + _fetch_reddit_raw(ticker)
-        )
+        raw = _fetch_stocktwits_raw(ticker) + _fetch_reddit_raw(ticker)
+        _posts_cache[ticker] = _filter_recent_posts(raw)
     return _posts_cache[ticker]
 
 
