@@ -51,7 +51,7 @@ Take into account your reflections from similar past situations. Use these to re
 
 OUTPUT STRUCTURE — use the following three sections:
 
-Recommendation: State Buy, Sell, or Hold. Avoid Hold unless the surviving arguments from both sides are genuinely balanced after applying the four steps above; do not use Hold as a default when the analysis is difficult.
+Recommendation: State Buy, Sell, or Hold. Avoid Hold unless the surviving arguments from both sides are genuinely balanced after applying the four steps above; do not use Hold as a default when the analysis is difficult. Buy and Sell are equally decisive choices; a well-supported bearish case warrants Sell just as unambiguously as a well-supported bullish case warrants Buy.
 
 Reasoning: Explain which surviving arguments drove your conclusion and why. For each unresolved conflict identified in Step 3, state explicitly why it does or does not change your recommendation.
 
