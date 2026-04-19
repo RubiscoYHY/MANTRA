@@ -108,7 +108,7 @@ class TradingAgentsGraph:
 
         # Initialize components
         self.conditional_logic = ConditionalLogic(
-            max_debate_rounds=self.config["max_debate_rounds"],
+            judge_iterations=self.config["judge_iterations"],
             max_risk_discuss_rounds=self.config["max_risk_discuss_rounds"],
         )
         self.graph_setup = GraphSetup(
@@ -283,15 +283,15 @@ class TradingAgentsGraph:
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
             "investment_debate_state": {
-                "bull_history": final_state["investment_debate_state"]["bull_history"],
-                "bear_history": final_state["investment_debate_state"]["bear_history"],
-                "history": final_state["investment_debate_state"]["history"],
-                "current_response": final_state["investment_debate_state"][
-                    "current_response"
-                ],
-                "judge_decision": final_state["investment_debate_state"][
-                    "judge_decision"
-                ],
+                "bull_history":       final_state["investment_debate_state"]["bull_history"],
+                "bear_history":       final_state["investment_debate_state"]["bear_history"],
+                "history":            final_state["investment_debate_state"]["history"],
+                "judge_history":      final_state["investment_debate_state"].get("judge_history", ""),
+                "judge_critique_bull": final_state["investment_debate_state"].get("judge_critique_bull", ""),
+                "judge_critique_bear": final_state["investment_debate_state"].get("judge_critique_bear", ""),
+                "judge_count":        final_state["investment_debate_state"].get("judge_count", 0),
+                "current_response":   final_state["investment_debate_state"]["current_response"],
+                "judge_decision":     final_state["investment_debate_state"]["judge_decision"],
             },
             "trader_investment_decision": final_state["trader_investment_plan"],
             "risk_debate_state": {

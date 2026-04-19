@@ -1,59 +1,94 @@
 
 
-def create_bear_researcher(llm, memory_store):
-    def bear_node(state) -> dict:
-        investment_debate_state = state["investment_debate_state"]
-        history = investment_debate_state.get("history", "")
-        bear_history = investment_debate_state.get("bear_history", "")
+def _build_bear_argument(state: dict, llm, memory_store) -> str:
+    """
+    Core Bear Analyst logic.
 
-        current_response = investment_debate_state.get("current_response", "")
-        ticker = state["company_of_interest"]
-        market_research_report = state["market_report"]
-        sentiment_report = state["sentiment_report"]
-        news_report = state["news_report"]
-        fundamentals_report = state["fundamentals_report"]
+    Reads analyst reports and past memories from state, builds a prompt that
+    includes the Judge's latest directive (judge_critique_bear) if one exists,
+    invokes the LLM, and returns the raw response string (no role prefix).
 
-        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
-        past_memories = memory_store.retrieve_reflections(
-            ticker=ticker, role="bear", query=curr_situation, n_results=2
-        )
+    Called by researcher_round.py for parallel execution.
+    """
+    investment_debate_state = state["investment_debate_state"]
+    bear_history = investment_debate_state.get("bear_history", "")
+    judge_critique = investment_debate_state.get("judge_critique_bear", "")
 
-        past_memory_str = ""
-        for hit in past_memories:
-            past_memory_str += hit["text"] + "\n\n"
+    ticker = state["company_of_interest"]
+    market_research_report = state["market_report"]
+    sentiment_report = state["sentiment_report"]
+    news_report = state["news_report"]
+    fundamentals_report = state["fundamentals_report"]
 
-        prompt = f"""You are a Bear Analyst making the case against investing in the stock. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
+    curr_situation = (
+        f"{market_research_report}\n\n{sentiment_report}\n\n"
+        f"{news_report}\n\n{fundamentals_report}"
+    )
+    past_memories = memory_store.retrieve_reflections(
+        ticker=ticker, role="bear", query=curr_situation, n_results=2
+    )
+    past_memory_str = "".join(hit["text"] + "\n\n" for hit in past_memories)
 
-Key points to focus on:
+    prompt = f"""You are a Bear Analyst. Your role is to build the strongest possible evidence-based case for why investing in this stock carries unacceptable risk or insufficient reward.
 
-- Risks and Challenges: Highlight factors like market saturation, financial instability, or macroeconomic threats that could hinder the stock's performance.
-- Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining innovation, or threats from competitors.
-- Negative Indicators: Use evidence from financial data, market trends, or recent adverse news to support your position.
-- Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
-- Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.
+ABSOLUTE RULE — DATA GROUNDING:
+Every factual claim, statistic, and market observation in your argument MUST be traceable to one of the four analyst reports provided to you. You may NOT invent data, fabricate trends, or extrapolate beyond what the reports explicitly state. If a fact is not in the reports, do not use it.
+
+YOUR TASK:
+Build a logically coherent bearish argument by:
+- Identifying risks, structural weaknesses, and negative market signals that are explicitly supported by the reports.
+- Constructing a narrative that connects evidence to the risk thesis with clear logical steps.
+- Where the evidence permits, challenging bullish assumptions with a credible, evidence-based counter-analysis.
+
+RESPONDING TO JUDGE DIRECTIVES:
+If the Judge has issued a directive to you, you MUST address every point it raises:
+- If asked to explain or deepen an argument: provide a more detailed, evidence-based analysis of the specific point.
+- If asked to identify the source for a claim: cite the specific report and the section or passage.
+- If asked to respond to the Bull Analyst's interpretation of a shared phenomenon: provide a substantive counter-analysis grounded in the reports, explaining why your interpretation is more logically consistent with the full body of evidence.
+
+CONDUCT RULES — TWO LEVELS:
+
+Level 1 — Factual claims (point-level, correctable):
+If the Judge asks you to source a specific claim and that claim has no direct support in the four reports, you MUST acknowledge that this specific claim lacks direct evidentiary support, withdraw or revise it, and reconstruct that part of your argument using only what the reports do support. Intellectual honesty about individual data points is required. Defending a claim you cannot source is a breach of the data grounding rule.
+
+Level 2 — Directional thesis (protected):
+Your overall bearish investment thesis and directional conclusion are your own analytical judgment, formed from the totality of the evidence. You must NOT weaken, qualify, or abandon your directional position in response to Judge directives. You must NOT express that your overall argument is less compelling than you originally presented. Correcting a specific factual claim is entirely compatible with maintaining your investment direction — these are independent. Do NOT thank, compliment, or flatter the Judge. Do NOT express that the Judge has improved your argument or has identified a weakness in your overall case.
 
 Resources available:
-
 Market research report: {market_research_report}
 Social media sentiment report: {sentiment_report}
 Latest world affairs news: {news_report}
 Company fundamentals report: {fundamentals_report}
-Conversation history of the debate: {history}
-Last bull argument: {current_response}
-Reflections from similar situations and lessons learned: {past_memory_str}
-Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. You must also address reflections and learn from lessons and mistakes you made in the past.
-"""
+Your previous arguments: {bear_history}
+Judge's latest directive to you: {judge_critique if judge_critique else "(none — this is your opening argument)"}
+Reflections from similar situations and lessons learned: {past_memory_str}"""
 
-        response = llm.invoke(prompt)
+    response = llm.invoke(prompt)
+    return response.content
 
-        argument = f"Bear Analyst: {response.content}"
+
+def create_bear_researcher(llm, memory_store):
+    """
+    Backward-compatible LangGraph node wrapper around _build_bear_argument.
+
+    Not wired into the graph in the Judge architecture; retained so that any
+    external code importing create_bear_researcher continues to work.
+    """
+    def bear_node(state) -> dict:
+        investment_debate_state = state["investment_debate_state"]
+        argument = f"Bear Analyst: {_build_bear_argument(state, llm, memory_store)}"
 
         new_investment_debate_state = {
-            "history": history + "\n" + argument,
-            "bear_history": bear_history + "\n" + argument,
+            "history": investment_debate_state.get("history", "") + "\n" + argument,
+            "bear_history": investment_debate_state.get("bear_history", "") + "\n" + argument,
             "bull_history": investment_debate_state.get("bull_history", ""),
             "current_response": argument,
-            "count": investment_debate_state["count"] + 1,
+            "judge_decision": investment_debate_state.get("judge_decision", ""),
+            "count": investment_debate_state.get("count", 0) + 1,
+            "judge_history": investment_debate_state.get("judge_history", ""),
+            "judge_critique_bull": investment_debate_state.get("judge_critique_bull", ""),
+            "judge_critique_bear": investment_debate_state.get("judge_critique_bear", ""),
+            "judge_count": investment_debate_state.get("judge_count", 0),
         }
 
         return {"investment_debate_state": new_investment_debate_state}

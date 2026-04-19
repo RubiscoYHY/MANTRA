@@ -6,6 +6,8 @@ from langgraph.prebuilt import ToolNode
 
 from tradingagents.agents import *
 from tradingagents.agents.utils.agent_states import AgentState
+from tradingagents.agents.researchers.researcher_round import create_researcher_round
+from tradingagents.agents.researchers.judge_researcher import create_judge_researcher
 
 from .conditional_logic import ConditionalLogic
 from .parallel_analysts import run_analysts_parallel
@@ -84,11 +86,12 @@ class GraphSetup:
         # ------------------------------------------------------------------
         # Build researcher / manager / trader nodes
         # ------------------------------------------------------------------
-        bull_researcher_node = create_bull_researcher(
+        researcher_round_node = create_researcher_round(
             self.quick_thinking_llm, self.memory_store
         )
-        bear_researcher_node = create_bear_researcher(
-            self.quick_thinking_llm, self.memory_store
+        judge_researcher_node = create_judge_researcher(
+            self.deep_thinking_llm,
+            fallback_on_failure=False,
         )
         research_manager_node = create_research_manager(
             self.deep_thinking_llm, self.memory_store
@@ -111,8 +114,8 @@ class GraphSetup:
         workflow = StateGraph(AgentState)
 
         # Nodes shared by both modes
-        workflow.add_node("Bull Researcher", bull_researcher_node)
-        workflow.add_node("Bear Researcher", bear_researcher_node)
+        workflow.add_node("Researcher Round", researcher_round_node)
+        workflow.add_node("Judge Researcher", judge_researcher_node)
         workflow.add_node("Research Manager", research_manager_node)
         workflow.add_node("Trader", trader_node)
         workflow.add_node("Portfolio Manager", portfolio_manager_node)
@@ -138,7 +141,7 @@ class GraphSetup:
 
             workflow.add_node("Run Analysts", _parallel_analysts_node)
             workflow.add_edge(START, "Run Analysts")
-            workflow.add_edge("Run Analysts", "Bull Researcher")
+            workflow.add_edge("Run Analysts", "Researcher Round")
 
         else:
             # Sequential path: add individual analyst + tool + msg-clear nodes.
@@ -168,27 +171,24 @@ class GraphSetup:
                     next_analyst = f"{selected_analysts[i + 1].capitalize()} Analyst"
                     workflow.add_edge(current_clear, next_analyst)
                 else:
-                    workflow.add_edge(current_clear, "Bull Researcher")
+                    workflow.add_edge(current_clear, "Researcher Round")
 
         # ------------------------------------------------------------------
-        # Researcher debate edges (same for both modes)
+        # Researcher / Judge debate edges (same for both analyst modes)
+        #
+        # Flow:  Researcher Round ──→ Judge Researcher (if judge_count < judge_iterations)
+        #                         └──→ Research Manager (otherwise)
+        #        Judge Researcher ──→ Researcher Round  (always — static edge)
         # ------------------------------------------------------------------
         workflow.add_conditional_edges(
-            "Bull Researcher",
-            self.conditional_logic.should_continue_debate,
+            "Researcher Round",
+            self.conditional_logic.should_continue_to_judge,
             {
-                "Bear Researcher": "Bear Researcher",
+                "Judge Researcher": "Judge Researcher",
                 "Research Manager": "Research Manager",
             },
         )
-        workflow.add_conditional_edges(
-            "Bear Researcher",
-            self.conditional_logic.should_continue_debate,
-            {
-                "Bull Researcher": "Bull Researcher",
-                "Research Manager": "Research Manager",
-            },
-        )
+        workflow.add_edge("Judge Researcher", "Researcher Round")
         workflow.add_edge("Research Manager", "Trader")
 
         # ------------------------------------------------------------------

@@ -31,6 +31,11 @@ class Propagator:
                     "current_response": "",
                     "judge_decision": "",
                     "count": 0,
+                    # Judge architecture fields
+                    "judge_history": "",
+                    "judge_critique_bull": "",
+                    "judge_critique_bear": "",
+                    "judge_count": 0,
                 }
             ),
             "risk_debate_state": RiskDebateState(

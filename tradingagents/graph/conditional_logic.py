@@ -6,9 +6,9 @@ from tradingagents.agents.utils.agent_states import AgentState
 class ConditionalLogic:
     """Handles conditional logic for determining graph flow."""
 
-    def __init__(self, max_debate_rounds=1, max_risk_discuss_rounds=1):
+    def __init__(self, judge_iterations=1, max_risk_discuss_rounds=1):
         """Initialize with configuration parameters."""
-        self.max_debate_rounds = max_debate_rounds
+        self.judge_iterations = judge_iterations
         self.max_risk_discuss_rounds = max_risk_discuss_rounds
 
     def should_continue_market(self, state: AgentState):
@@ -43,16 +43,20 @@ class ConditionalLogic:
             return "tools_fundamentals"
         return "Msg Clear Fundamentals"
 
-    def should_continue_debate(self, state: AgentState) -> str:
-        """Determine if debate should continue."""
+    def should_continue_to_judge(self, state: AgentState) -> str:
+        """
+        After a Researcher Round: route to Judge Researcher if more
+        iterations remain, otherwise route directly to Research Manager.
 
-        if (
-            state["investment_debate_state"]["count"] >= 2 * self.max_debate_rounds
-        ):  # 3 rounds of back-and-forth between 2 agents
-            return "Research Manager"
-        if state["investment_debate_state"]["current_response"].startswith("Bull"):
-            return "Bear Researcher"
-        return "Bull Researcher"
+        judge_count reflects how many Judge iterations have already run.
+        Before the first Judge call it is 0, so 0 < judge_iterations is True.
+        After the final Judge + final Researcher Round it equals
+        judge_iterations, so the condition is False and we go to Manager.
+        """
+        judge_count = state["investment_debate_state"].get("judge_count", 0)
+        if judge_count < self.judge_iterations:
+            return "Judge Researcher"
+        return "Research Manager"
 
     def should_continue_risk_analysis(self, state: AgentState) -> str:
         """Determine if risk analysis should continue."""

@@ -37,7 +37,12 @@ DEFAULT_CONFIG = {
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",
     # Debate and discussion settings
-    "max_debate_rounds": 1,
+    # judge_iterations controls how many Judge critique cycles occur before
+    # the debate is handed to the Research Manager.
+    #   1 → 5 API calls  (Bull+Bear initial → Judge → Bull+Bear response)
+    #   2 → 8 API calls  (adds one more Judge + researcher round)
+    #   3 → 11 API calls (adds another Judge + researcher round)
+    "judge_iterations": 1,
     "max_risk_discuss_rounds": 1,
     "max_recur_limit": 100,
     # Parallel analyst execution.

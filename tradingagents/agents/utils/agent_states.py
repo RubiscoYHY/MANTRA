@@ -5,16 +5,17 @@ from langgraph.graph import MessagesState
 
 # Researcher team state
 class InvestDebateState(TypedDict):
-    bull_history: Annotated[
-        str, "Bullish Conversation history"
-    ]  # Bullish Conversation history
-    bear_history: Annotated[
-        str, "Bearish Conversation history"
-    ]  # Bullish Conversation history
-    history: Annotated[str, "Conversation history"]  # Conversation history
-    current_response: Annotated[str, "Latest response"]  # Last response
-    judge_decision: Annotated[str, "Final judge decision"]  # Last response
-    count: Annotated[int, "Length of the current conversation"]  # Conversation length
+    bull_history: Annotated[str, "Bull Analyst's accumulated argument history"]
+    bear_history: Annotated[str, "Bear Analyst's accumulated argument history"]
+    history: Annotated[str, "Full interleaved conversation history (Bull + Bear + Judge)"]
+    current_response: Annotated[str, "Latest response (retained for compatibility)"]
+    judge_decision: Annotated[str, "Final Research Manager decision"]
+    count: Annotated[int, "Total number of individual researcher turns"]
+    # Judge architecture fields
+    judge_history: Annotated[str, "Judge's accumulated critique history (all iterations)"]
+    judge_critique_bull: Annotated[str, "Latest Judge directive addressed to Bull Analyst"]
+    judge_critique_bear: Annotated[str, "Latest Judge directive addressed to Bear Analyst"]
+    judge_count: Annotated[int, "Number of Judge iterations completed so far"]
 
 
 # Risk management team state
