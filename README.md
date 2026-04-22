@@ -91,6 +91,20 @@ MANTRA uses a dual-LLM architecture: a **deep-thinking** model for the manager l
 
 ---
 
+## GUI
+
+```bash
+mantragui
+```
+
+This launches a Flask-based web dashboard at `http://127.0.0.1:5720` and opens your browser automatically. The GUI provides:
+
+- **Configuration form** — select run mode (single-day / backtest), ticker(s), date range, analyst team, research depth, and LLM providers/models.
+- **Live dashboard** — real-time agent pipeline status, activity log, memory stats, and token usage via Server-Sent Events.
+- **Results view** — final trading decision with confidence, full analysis report, and backtest charts.
+
+---
+
 ## CLI
 
 ```bash
