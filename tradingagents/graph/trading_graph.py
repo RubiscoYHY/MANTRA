@@ -351,6 +351,62 @@ class TradingAgentsGraph:
             actual_return=float(returns_losses),
         )
 
+    def run_backtest(self, ticker: str, start_date: str, end_date: str):
+        """Run a multi-day backtest for a single ticker.
+
+        Iterates over trading days in [start_date, end_date], calling
+        propagate() + reflect_and_remember() for each day.
+
+        Returns (results, all_results) where results is a list of dicts
+        with keys: ticker, date, signal, confidence, horizon, actual_return.
+        """
+        import pandas as pd
+        import yfinance as yf
+        from tradingagents.dataflows.backtest_cache import get_backtest_cache
+
+        # Determine trading days
+        try:
+            hist = yf.download(
+                ticker, start=start_date, end=end_date,
+                auto_adjust=True, progress=False,
+            )
+            trading_days = [d.strftime("%Y-%m-%d") for d in hist.index]
+        except Exception:
+            trading_days = pd.bdate_range(start_date, end_date).strftime("%Y-%m-%d").tolist()
+
+        if not trading_days:
+            return [], []
+
+        cache = get_backtest_cache()
+
+        results: list[dict] = []
+        for trade_date in trading_days:
+            try:
+                _final_state, signal_dict = self.propagate(ticker, trade_date)
+                actual_return = cache.get_next_day_return(trade_date)
+                self.reflect_and_remember(actual_return)
+
+                results.append({
+                    "ticker":        ticker,
+                    "date":          trade_date,
+                    "signal":        signal_dict.get("signal", "HOLD"),
+                    "confidence":    signal_dict.get("confidence", 0.70),
+                    "horizon":       signal_dict.get("horizon", "1-5d"),
+                    "actual_return": actual_return,
+                })
+            except Exception as e:
+                results.append({
+                    "ticker":        ticker,
+                    "date":          trade_date,
+                    "signal":        "ERROR",
+                    "confidence":    0.0,
+                    "horizon":       "",
+                    "actual_return": 0.0,
+                })
+
+        cache.clear()
+        return results, results
+
     def process_signal(self, full_signal):
         """Process a signal to extract the core decision."""
         return self.signal_processor.process_signal(full_signal)

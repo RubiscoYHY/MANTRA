@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MANTRA</title>
+<style>
+/* ------------------------------------------------------------------ */
+/* Reset & Variables                                                   */
+/* ------------------------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0C0F0D;
+  --bg-card:     #141A16;
+  --bg-hover:    #1C2420;
+  --bg-input:    #111714;
+  --accent:      #C2A67E;
+  --accent-dim:  #8B7355;
+  --accent-glow: rgba(194,166,126,.12);
+  --text:        #D8CEBC;
+  --text-dim:    #8A8070;
+  --text-faint:  #5A5348;
+  --border:      #2A322C;
+  --success:     #5A9E6F;
+  --error:       #C25050;
+  --warning:     #C2A050;
+  --radius:      8px;
+  --font:        'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scrollbar                                                           */
+/* ------------------------------------------------------------------ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+
+/* ------------------------------------------------------------------ */
+/* Layout                                                              */
+/* ------------------------------------------------------------------ */
+.app { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+/* ------------------------------------------------------------------ */
+/* Header                                                              */
+/* ------------------------------------------------------------------ */
+.header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.header h1 {
+  font-size: 1.8rem;
+  color: var(--accent);
+  letter-spacing: 0.25em;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.header .subtitle {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+.header .pipeline {
+  margin-top: 0.8rem;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+.header .pipeline span { color: var(--accent-dim); }
+
+/* ------------------------------------------------------------------ */
+/* Cards                                                               */
+/* ------------------------------------------------------------------ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.card-title {
+  font-size: 0.8rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.card-title .step-num {
+  background: var(--accent);
+  color: var(--bg);
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ */
+/* Form elements                                                       */
+/* ------------------------------------------------------------------ */
+label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+}
+
+select, input[type="text"], input[type="date"] {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color .2s;
+}
+select:focus, input:focus {
+  border-color: var(--accent-dim);
+}
+select option { background: var(--bg-card); color: var(--text); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+.form-group { margin-bottom: 0.6rem; }
+
+/* Checkboxes */
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+.checkbox-item input[type="checkbox"] {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  background: var(--bg-input);
+  cursor: pointer;
+  position: relative;
+}
+.checkbox-item input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.checkbox-item input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px; top: 1px;
+  width: 4px; height: 7px;
+  border: solid var(--bg); border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.checkbox-item span {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+/* Radio pills */
+.radio-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.radio-pill {
+  cursor: pointer;
+}
+.radio-pill input { display: none; }
+.radio-pill .pill {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  transition: all .2s;
+}
+.radio-pill input:checked + .pill {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+.radio-pill .pill:hover {
+  border-color: var(--accent-dim);
+  color: var(--text);
+}
+
+/* Submit button */
+.btn-start {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 1.5rem;
+  background: linear-gradient(135deg, var(--accent-dim), var(--accent));
+  border: none;
+  border-radius: var(--radius);
+  color: var(--bg);
+  font-family: var(--font);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: opacity .2s, transform .1s;
+}
+.btn-start:hover { opacity: 0.9; }
+.btn-start:active { transform: scale(0.99); }
+.btn-start:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Extra config row (conditionally visible) */
+.extra-config { margin-top: 0.5rem; }
+.hidden { display: none !important; }
+
+/* ------------------------------------------------------------------ */
+/* Dashboard (analysis view)                                           */
+/* ------------------------------------------------------------------ */
+#dashboard { display: none; }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 1rem;
+  min-height: 70vh;
+}
+
+/* Agent pipeline panel */
+.panel-agents {
+  grid-row: 1 / 5;
+}
+.agent-group-title {
+  font-size: 0.7rem;
+  color: var(--accent-dim);
+  letter-spacing: 0.06em;
+  margin: 0.8rem 0 0.3rem;
+}
+.agent-group-title:first-child { margin-top: 0; }
+
+/* Execution mode badge */
+.exec-mode-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+.exec-mode-badge.parallel {
+  background: rgba(90,158,111,.15);
+  color: var(--success);
+  border: 1px solid rgba(90,158,111,.3);
+}
+.exec-mode-badge.sequential {
+  background: rgba(194,160,80,.15);
+  color: var(--warning);
+  border: 1px solid rgba(194,160,80,.3);
+}
+
+/* Parallel group bracket */
+.parallel-group {
+  border-left: 2px solid rgba(90,158,111,.4);
+  margin-left: 0.3rem;
+  padding-left: 0.5rem;
+  position: relative;
+}
+.parallel-group::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 0;
+  width: 6px;
+  height: 2px;
+  background: rgba(90,158,111,.4);
+}
+.parallel-group::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  bottom: 0;
+  width: 6px;
+  height: 2px;
+  background: rgba(90,158,111,.4);
+}
+
+/* Debate loop container with recycling arrow */
+.debate-loop {
+  border-left: 2px solid rgba(194,160,80,.35);
+  margin-left: 0.3rem;
+  padding-left: 0.5rem;
+  position: relative;
+}
+.debate-loop-arrow {
+  position: absolute;
+  right: -0.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--warning);
+  font-size: 1rem;
+  opacity: 0.6;
+}
+.debate-round-label {
+  font-size: 0.6rem;
+  color: var(--text-faint);
+  padding-left: 1.6rem;
+  padding-top: 0.1rem;
+  font-style: italic;
+}
+
+/* Sequential arrow connector */
+.seq-connector {
+  display: flex;
+  align-items: center;
+  padding: 0.1rem 0 0.1rem 0.55rem;
+  color: var(--text-faint);
+  font-size: 0.6rem;
+}
+
+/* Group connector arrow between groups */
+.group-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0;
+  color: var(--text-faint);
+  font-size: 0.65rem;
+}
+
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.78rem;
+}
+.agent-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-faint);
+  transition: background .3s;
+}
+.agent-dot.pending { background: var(--text-faint); }
+.agent-dot.in_progress { background: var(--warning); animation: pulse 1.2s infinite; }
+.agent-dot.completed { background: var(--success); }
+.agent-name { color: var(--text-dim); }
+.agent-dot.completed + .agent-name { color: var(--text); }
+.agent-dot.in_progress + .agent-name { color: var(--warning); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Database status panel */
+.panel-db {
+}
+.db-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+.db-stat-box {
+  text-align: center;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-input);
+}
+.db-stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.db-stat-label {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 0.15rem;
+}
+.panel-db.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.panel-db.disabled .db-stat-value {
+  color: var(--text-faint);
+}
+.db-disabled-msg {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-align: center;
+  padding: 0.3rem 0;
+  font-style: italic;
+}
+
+/* Messages panel */
+.panel-messages {
+  max-height: 220px;
+  overflow-y: auto;
+}
+.msg-line {
+  font-size: 0.72rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgba(42,50,44,.4);
+}
+.msg-time { color: var(--text-faint); margin-right: 0.4rem; }
+.msg-type { color: var(--accent-dim); margin-right: 0.3rem; }
+.msg-content { color: var(--text-dim); }
+
+/* Report panel */
+.panel-report {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.report-content {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+/* Stats bar */
+.stats-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+}
+.stat-item span { color: var(--accent-dim); }
+
+/* Complete overlay */
+.decision-banner {
+  text-align: center;
+  padding: 1.2rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  background: var(--accent-glow);
+}
+.decision-signal {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.15em;
+}
+.decision-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+}
+
+.btn-back {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.btn-back:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* Full report modal */
+.report-full {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 60vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* Backtest progress bar */
+.backtest-progress {
+  display: none;
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.backtest-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.backtest-progress-label {
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+.backtest-progress-date {
+  color: var(--accent);
+  font-weight: 600;
+}
+.backtest-progress-counter {
+  color: var(--text-dim);
+}
+.backtest-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.backtest-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* Error */
+.error-box {
+  background: rgba(194,80,80,.1);
+  border: 1px solid var(--error);
+  border-radius: var(--radius);
+  padding: 1rem;
+  color: var(--error);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============================================================= -->
+  <!-- HEADER                                                         -->
+  <!-- ============================================================= -->
+  <div class="header">
+    <h1>MANTRA</h1>
+    <div class="subtitle">Memory-Augmented Neural Trading Retrieval Agents</div>
+    <div class="pipeline">
+      <span>Analysts</span> &rarr; <span>Research</span> &rarr; <span>Trader</span> &rarr; <span>Risk</span> &rarr; <span>Portfolio</span>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- CONFIGURATION FORM                                             -->
+  <!-- ============================================================= -->
+  <div id="config-form">
+
+    <!-- Step 0: Run Mode -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">0</span> RUN MODE</div>
+      <div class="radio-group">
+        <label class="radio-pill">
+          <input type="radio" name="run_mode" value="single" checked>
+          <span class="pill">Single Day</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="run_mode" value="backtest_single">
+          <span class="pill">Backtest (Single Stock)</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="run_mode" value="backtest_multi">
+          <span class="pill">Backtest (Multi-Stock)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 1: Ticker -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">1</span> TICKER</div>
+      <div class="form-group">
+        <label id="ticker-label">Ticker symbol (e.g. SPY, 0700.HK, 7203.T)</label>
+        <input type="text" id="ticker" value="SPY" placeholder="SPY">
+      </div>
+    </div>
+
+    <!-- Step 2: Date -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">2</span> DATE</div>
+      <div class="form-row" id="date-single">
+        <div class="form-group">
+          <label>Analysis Date</label>
+          <input type="text" id="analysis-date" placeholder="YYYY-MM-DD">
+        </div>
+      </div>
+      <div class="form-row hidden" id="date-range">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="text" id="start-date" placeholder="YYYY-MM-DD">
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="text" id="end-date" placeholder="YYYY-MM-DD">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Language -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">3</span> OUTPUT LANGUAGE</div>
+      <div class="form-group">
+        <select id="language">
+          <option value="English">English</option>
+          <option value="Chinese">Chinese</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option>
+          <option value="Spanish">Spanish</option>
+          <option value="French">French</option>
+          <option value="German">German</option>
+          <option value="Portuguese">Portuguese</option>
+          <option value="Hindi">Hindi</option>
+          <option value="Arabic">Arabic</option>
+          <option value="Russian">Russian</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Step 4: Analysts -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">4</span> ANALYST TEAM</div>
+      <div class="checkbox-group">
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="market" checked>
+          <span>Market</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="social">
+          <span>Social</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="news" checked>
+          <span>News</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="fundamentals" checked>
+          <span>Fundamentals</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 5: Research Depth -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">5</span> RESEARCH DEPTH</div>
+      <div class="radio-group">
+        <label class="radio-pill">
+          <input type="radio" name="depth" value="1" checked>
+          <span class="pill">Shallow</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="depth" value="3">
+          <span class="pill">Medium</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="depth" value="5">
+          <span class="pill">Deep</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 6: Analyst LLM -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">6</span> ANALYST LLM (Quick-Thinking)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Provider</label>
+          <select id="analyst-provider" data-tier="quick"></select>
+        </div>
+        <div class="form-group">
+          <label>Model</label>
+          <select id="analyst-model"></select>
+        </div>
+      </div>
+      <div id="analyst-extra" class="extra-config"></div>
+    </div>
+
+    <!-- Step 7: Manager LLM -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">7</span> MANAGER LLM (Deep-Thinking)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Provider</label>
+          <select id="manager-provider" data-tier="deep"></select>
+        </div>
+        <div class="form-group">
+          <label>Model</label>
+          <select id="manager-model"></select>
+        </div>
+      </div>
+      <div id="manager-extra" class="extra-config"></div>
+    </div>
+
+    <button class="btn-start" id="btn-start" onclick="startAnalysis()">
+      START ANALYSIS
+    </button>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- DASHBOARD (shown during analysis)                              -->
+  <!-- ============================================================= -->
+  <div id="dashboard">
+    <!-- Backtest progress bar (visible only in backtest mode) -->
+    <div class="backtest-progress" id="backtest-progress">
+      <div class="backtest-progress-header">
+        <span class="backtest-progress-label">BACKTEST</span>
+        <span class="backtest-progress-date" id="bt-current-date">—</span>
+        <span class="backtest-progress-counter" id="bt-counter">0 / 0</span>
+      </div>
+      <div class="backtest-progress-track">
+        <div class="backtest-progress-fill" id="bt-fill"></div>
+      </div>
+    </div>
+    <div class="dashboard-grid">
+      <!-- Agent pipeline -->
+      <div class="card panel-agents">
+        <div class="card-title">AGENT PIPELINE</div>
+        <div id="agent-list"></div>
+      </div>
+
+      <!-- Messages -->
+      <div class="card panel-messages">
+        <div class="card-title">ACTIVITY LOG</div>
+        <div id="message-list"></div>
+      </div>
+
+      <!-- Report -->
+      <div class="card panel-report">
+        <div class="card-title">LIVE REPORT</div>
+        <div id="report-content" class="report-content">Waiting for analysis to begin...</div>
+      </div>
+
+      <!-- Database Status -->
+      <div class="card panel-db disabled" id="panel-db">
+        <div class="card-title">MEMORY DATABASE</div>
+        <div class="db-disabled-msg" id="db-disabled-msg">Memory disabled in single-day mode</div>
+        <div class="db-stats-grid">
+          <div class="db-stat-box">
+            <div class="db-stat-value" id="db-reads">0</div>
+            <div class="db-stat-label">Reads</div>
+          </div>
+          <div class="db-stat-box">
+            <div class="db-stat-value" id="db-writes">0</div>
+            <div class="db-stat-label">Writes</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats bar -->
+      <div class="stats-bar">
+        <div class="stat-item">Elapsed: <span id="stat-elapsed">0s</span></div>
+        <div class="stat-item">LLM Calls: <span id="stat-llm">0</span></div>
+        <div class="stat-item">Tool Calls: <span id="stat-tools">0</span></div>
+        <div class="stat-item">Tokens In: <span id="stat-in">0</span></div>
+        <div class="stat-item">Tokens Out: <span id="stat-out">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- RESULTS (shown after analysis completes)                       -->
+  <!-- ============================================================= -->
+  <div id="results" class="hidden">
+    <div id="decision-banner" class="decision-banner"></div>
+    <div class="card">
+      <div class="card-title">FULL REPORT</div>
+      <div id="full-report" class="report-full"></div>
+    </div>
+    <div style="text-align:center; margin-top:1rem;">
+      <button class="btn-back" onclick="resetForm()">New Analysis</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================== */
+/* State                                                               */
+/* ================================================================== */
+let currentJobId = null;
+let eventSource = null;
+const reportSections = {};
+let parallelAnalysts = null;  // null = unknown, true/false = determined
+let lastAgents = null;        // latest full agent status map
+let debateMeta = {};          // debate round numbers
+let currentRunMode = 'single';
+
+/* ================================================================== */
+/* Initialization                                                      */
+/* ================================================================== */
+document.addEventListener('DOMContentLoaded', () => {
+  // Set default dates
+  const today = new Date().toISOString().slice(0, 10);
+  const d90 = new Date(Date.now() - 90*86400000).toISOString().slice(0, 10);
+  document.getElementById('analysis-date').value = today;
+  document.getElementById('start-date').value = d90;
+  document.getElementById('end-date').value = today;
+
+  // Load providers
+  loadProviders();
+
+  // Run mode toggle
+  document.querySelectorAll('input[name="run_mode"]').forEach(r => {
+    r.addEventListener('change', onRunModeChange);
+  });
+});
+
+function onRunModeChange() {
+  const mode = document.querySelector('input[name="run_mode"]:checked').value;
+  const isBacktest = mode !== 'single';
+  document.getElementById('date-single').classList.toggle('hidden', isBacktest);
+  document.getElementById('date-range').classList.toggle('hidden', !isBacktest);
+
+  // Update ticker label
+  const label = document.getElementById('ticker-label');
+  if (mode === 'backtest_multi') {
+    label.textContent = 'Ticker symbols, comma-separated (e.g. NVDA, AMD, INTC)';
+  } else {
+    label.textContent = 'Ticker symbol (e.g. SPY, 0700.HK, 7203.T)';
+  }
+}
+
+/* ================================================================== */
+/* Provider / Model loading                                            */
+/* ================================================================== */
+async function loadProviders() {
+  const res = await fetch('/api/providers');
+  const providers = await res.json();
+
+  ['analyst', 'manager'].forEach(role => {
+    const sel = document.getElementById(role + '-provider');
+    providers.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.value;
+      opt.textContent = p.label;
+      sel.appendChild(opt);
+    });
+    // Set defaults
+    if (role === 'analyst') sel.value = 'google';
+    if (role === 'manager') sel.value = 'anthropic';
+    sel.addEventListener('change', () => loadModels(role));
+    loadModels(role);
+  });
+}
+
+async function loadModels(role) {
+  const provider = document.getElementById(role + '-provider').value;
+  const mode = role === 'analyst' ? 'quick' : 'deep';
+  const modelSel = document.getElementById(role + '-model');
+  modelSel.innerHTML = '';
+
+  if (provider === 'openrouter' || provider === 'ollama') {
+    // Free text for these providers
+    modelSel.innerHTML = '<option value="">Enter model ID in ticker field</option>';
+    return;
+  }
+
+  const res = await fetch(`/api/models/${provider}/${mode}`);
+  const models = await res.json();
+  models.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.value;
+    opt.textContent = m.label;
+    modelSel.appendChild(opt);
+  });
+
+  // Show/hide extra config
+  updateExtraConfig(role, provider);
+}
+
+function updateExtraConfig(role, provider) {
+  const container = document.getElementById(role + '-extra');
+  container.innerHTML = '';
+
+  if (provider === 'google') {
+    container.innerHTML = `
+      <div class="form-group" style="margin-top:0.5rem">
+        <label>Thinking Mode</label>
+        <select id="${role}-thinking">
+          <option value="high">Enable Thinking</option>
+          <option value="minimal">Minimal</option>
+        </select>
+      </div>`;
+  } else if (provider === 'openai') {
+    container.innerHTML = `
+      <div class="form-group" style="margin-top:0.5rem">
+        <label>Reasoning Effort</label>
+        <select id="${role}-reasoning">
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="low">Low</option>
+        </select>
+      </div>`;
+  } else if (provider === 'anthropic' && role === 'manager') {
+    container.innerHTML = `
+      <div class="form-group" style="margin-top:0.5rem">
+        <label>Effort Level</label>
+        <select id="${role}-effort">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>`;
+  }
+}
+
+/* ================================================================== */
+/* Start Analysis                                                      */
+/* ================================================================== */
+async function startAnalysis() {
+  const btn = document.getElementById('btn-start');
+  btn.disabled = true;
+  btn.textContent = 'STARTING...';
+
+  const runMode = document.querySelector('input[name="run_mode"]:checked').value;
+  const analysts = Array.from(document.querySelectorAll('input[name="analyst"]:checked'))
+                        .map(cb => cb.value);
+
+  if (analysts.length === 0) {
+    alert('Please select at least one analyst.');
+    btn.disabled = false;
+    btn.textContent = 'START ANALYSIS';
+    return;
+  }
+
+  const depth = parseInt(document.querySelector('input[name="depth"]:checked').value);
+  const analystProvider = document.getElementById('analyst-provider').value;
+  const analystModel = document.getElementById('analyst-model').value;
+  const managerProvider = document.getElementById('manager-provider').value;
+  const managerModel = document.getElementById('manager-model').value;
+
+  const payload = {
+    run_mode: runMode,
+    tickers: document.getElementById('ticker').value,
+    analysts: analysts,
+    research_depth: depth,
+    analyst_provider: analystProvider,
+    analyst_model: analystModel,
+    manager_provider: managerProvider,
+    manager_model: managerModel,
+    output_language: document.getElementById('language').value,
+  };
+
+  // Dates
+  if (runMode === 'single') {
+    payload.start_date = document.getElementById('analysis-date').value;
+    payload.end_date = payload.start_date;
+  } else {
+    payload.start_date = document.getElementById('start-date').value;
+    payload.end_date = document.getElementById('end-date').value;
+  }
+
+  // Provider-specific config
+  const at = document.getElementById('analyst-thinking');
+  if (at) payload.google_thinking_level = at.value;
+  const ar = document.getElementById('analyst-reasoning');
+  if (ar) payload.openai_reasoning_effort = ar.value;
+  const me = document.getElementById('manager-effort');
+  if (me) payload.anthropic_effort = me.value;
+  const mt = document.getElementById('manager-thinking');
+  if (mt) payload.google_thinking_level = mt.value;
+  const mr = document.getElementById('manager-reasoning');
+  if (mr) payload.openai_reasoning_effort = mr.value;
+
+  try {
+    const res = await fetch('/api/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    currentJobId = data.job_id;
+
+    // Switch to dashboard
+    document.getElementById('config-form').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('results').classList.add('hidden');
+
+    // Clear previous state
+    document.getElementById('agent-list').innerHTML = '';
+    document.getElementById('message-list').innerHTML = '';
+    document.getElementById('report-content').textContent = 'Waiting for analysis to begin...';
+    document.getElementById('db-reads').textContent = '0';
+    document.getElementById('db-writes').textContent = '0';
+    document.getElementById('backtest-progress').style.display = 'none';
+    document.getElementById('bt-fill').style.width = '0%';
+    document.getElementById('stat-elapsed').textContent = '0s';
+    document.getElementById('stat-llm').textContent = '0';
+    document.getElementById('stat-tools').textContent = '0';
+    document.getElementById('stat-in').textContent = '0';
+    document.getElementById('stat-out').textContent = '0';
+    Object.keys(reportSections).forEach(k => delete reportSections[k]);
+    parallelAnalysts = null;
+    currentRunMode = runMode;
+    updateDbPanel();
+
+    // Start SSE
+    connectSSE(currentJobId);
+  } catch (e) {
+    alert('Failed to start analysis: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'START ANALYSIS';
+  }
+}
+
+/* ================================================================== */
+/* SSE Connection                                                      */
+/* ================================================================== */
+function connectSSE(jobId) {
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource(`/api/stream/${jobId}`);
+
+  eventSource.addEventListener('status', (e) => {
+    const data = JSON.parse(e.data);
+    if (data.parallel_analysts !== undefined && data.parallel_analysts !== null) {
+      parallelAnalysts = data.parallel_analysts;
+    }
+    if (data.run_mode) currentRunMode = data.run_mode;
+    if (data.debate_meta) debateMeta = data.debate_meta;
+    if (data.agents) {
+      lastAgents = data.agents;
+      renderAgents(lastAgents);
+    }
+    // Single-agent status update (e.g. Media Labeling from FinBERT callback)
+    if (data.agent && data.state && lastAgents) {
+      lastAgents[data.agent] = data.state;
+      renderAgents(lastAgents);
+    }
+    if (data.stats) renderStats(data.stats);
+    if (data.db_stats) renderDbStats(data.db_stats);
+    updateDbPanel();
+  });
+
+  eventSource.addEventListener('message', (e) => {
+    const data = JSON.parse(e.data);
+    appendMessage(data.type, data.content);
+  });
+
+  eventSource.addEventListener('tool', (e) => {
+    const data = JSON.parse(e.data);
+    appendMessage('Tool', data.name);
+  });
+
+  eventSource.addEventListener('backtest_progress', (e) => {
+    const data = JSON.parse(e.data);
+    const bar = document.getElementById('backtest-progress');
+    bar.style.display = 'block';
+    document.getElementById('bt-current-date').textContent = data.current_date;
+    document.getElementById('bt-counter').textContent =
+      `Day ${data.day_index} / ${data.total_days}  ·  ${data.ticker}`;
+    const pct = (data.day_index / data.total_days) * 100;
+    document.getElementById('bt-fill').style.width = pct + '%';
+    // Clear live report for each new day
+    Object.keys(reportSections).forEach(k => delete reportSections[k]);
+    renderReport();
+  });
+
+  eventSource.addEventListener('report', (e) => {
+    const data = JSON.parse(e.data);
+    reportSections[data.section] = data.content;
+    renderReport();
+  });
+
+  eventSource.addEventListener('complete', (e) => {
+    const data = JSON.parse(e.data);
+    eventSource.close();
+    eventSource = null;
+    if (data.db_stats) renderDbStats(data.db_stats);
+    showResults(data);
+  });
+
+  eventSource.addEventListener('error', (e) => {
+    // Check if it's an SSE error event with data
+    if (e.data) {
+      const data = JSON.parse(e.data);
+      eventSource.close();
+      eventSource = null;
+      showError(data);
+    }
+  });
+
+  eventSource.onerror = () => {
+    // Connection lost — not necessarily a job error
+  };
+}
+
+/* ================================================================== */
+/* Rendering                                                           */
+/* ================================================================== */
+const AGENT_GROUPS = [
+  { key: 'analysts', label: 'Analyst Team', names: ['Market Analyst', 'Social Analyst', 'News Analyst', 'Fundamentals Analyst', 'Media Labeling'] },
+  { key: 'research', label: 'Research Team', names: ['Bull Researcher', 'Bear Researcher', 'Judge', 'Research Manager'] },
+  { key: 'trading',  label: 'Trading Team',  names: ['Trader'] },
+  { key: 'risk',     label: 'Risk Management', names: ['Aggressive Analyst', 'Neutral Analyst', 'Conservative Analyst'] },
+  { key: 'portfolio', label: 'Portfolio',     names: ['Portfolio Manager'] },
+];
+
+function _agentRowHtml(name, state) {
+  return `<div class="agent-row">
+    <div class="agent-dot ${state}"></div>
+    <span class="agent-name">${name}</span>
+  </div>`;
+}
+
+function renderAgents(agents) {
+  const el = document.getElementById('agent-list');
+  let html = '';
+  let groupIndex = 0;
+
+  for (const group of AGENT_GROUPS) {
+    const activeNames = group.names.filter(n => n in agents);
+    if (activeNames.length === 0) continue;
+
+    // Add connector arrow between groups
+    if (groupIndex > 0) {
+      html += `<div class="group-connector">|</div>`;
+    }
+
+    // Analyst group: show parallel/serial mode
+    if (group.key === 'analysts') {
+      const isParallel = parallelAnalysts === true;
+      const modeLabel = parallelAnalysts === null ? '' :
+        (isParallel
+          ? '<span class="exec-mode-badge parallel">PARALLEL</span>'
+          : '<span class="exec-mode-badge sequential">SEQUENTIAL</span>');
+      html += `<div class="agent-group-title">${group.label}${modeLabel}</div>`;
+
+      // Split analysts and non-analysts (Media Labeling)
+      const analystNames = activeNames.filter(n => n !== 'Media Labeling');
+      const hasMediaLabeling = activeNames.includes('Media Labeling');
+
+      if (isParallel && analystNames.length > 1) {
+        // Parallel bracket
+        html += `<div class="parallel-group">`;
+        for (const name of analystNames) {
+          html += _agentRowHtml(name, agents[name] || 'pending');
+        }
+        html += `</div>`;
+      } else {
+        // Sequential with arrows
+        for (let i = 0; i < analystNames.length; i++) {
+          html += _agentRowHtml(analystNames[i], agents[analystNames[i]] || 'pending');
+          if (i < analystNames.length - 1) {
+            html += `<div class="seq-connector">v</div>`;
+          }
+        }
+      }
+
+      // Media Labeling (always runs with Social Analyst)
+      if (hasMediaLabeling) {
+        html += _agentRowHtml('Media Labeling', agents['Media Labeling'] || 'pending');
+      }
+
+    } else if (group.key === 'research') {
+      // Research team: Bull & Bear debate via Judge, then Manager
+      html += `<div class="agent-group-title">${group.label}<span class="exec-mode-badge sequential">DEBATE</span></div>`;
+      const bull = activeNames.includes('Bull Researcher');
+      const bear = activeNames.includes('Bear Researcher');
+      const judge = activeNames.includes('Judge');
+      const mgr  = activeNames.includes('Research Manager');
+
+      // Bull & Bear report to Judge in a debate loop
+      const roundNum = debateMeta.research_round || 0;
+      const roundLabel = roundNum > 0
+        ? `<div class="debate-round-label">Round ${roundNum}</div>`
+        : `<div class="debate-round-label">Waiting...</div>`;
+
+      if (bull && bear) {
+        html += `<div class="debate-loop">`;
+        html += `<div class="parallel-group">`;
+        html += _agentRowHtml('Bull Researcher', agents['Bull Researcher'] || 'pending');
+        html += _agentRowHtml('Bear Researcher', agents['Bear Researcher'] || 'pending');
+        html += `</div>`;
+        if (judge) {
+          html += `<div class="seq-connector">v</div>`;
+          html += _agentRowHtml('Judge', agents['Judge'] || 'pending');
+          html += roundLabel;
+        }
+        html += `<div class="debate-loop-arrow" title="Judge sends feedback to Bull &amp; Bear for another round">&#x21bb;</div>`;
+        html += `</div>`;
+      } else {
+        if (bull) html += _agentRowHtml('Bull Researcher', agents['Bull Researcher'] || 'pending');
+        if (bear) html += _agentRowHtml('Bear Researcher', agents['Bear Researcher'] || 'pending');
+        if (judge) {
+          html += `<div class="seq-connector">v</div>`;
+          html += _agentRowHtml('Judge', agents['Judge'] || 'pending');
+          html += roundLabel;
+        }
+      }
+      if (mgr) {
+        html += `<div class="seq-connector">v</div>`;
+        html += _agentRowHtml('Research Manager', agents['Research Manager'] || 'pending');
+      }
+
+    } else if (group.key === 'risk') {
+      // Risk: three analysts debate in rotation (sequential)
+      html += `<div class="agent-group-title">${group.label}<span class="exec-mode-badge sequential">DEBATE</span></div>`;
+      for (let i = 0; i < activeNames.length; i++) {
+        html += _agentRowHtml(activeNames[i], agents[activeNames[i]] || 'pending');
+        if (i < activeNames.length - 1) {
+          html += `<div class="seq-connector">v</div>`;
+        }
+      }
+
+    } else {
+      // Default rendering
+      html += `<div class="agent-group-title">${group.label}</div>`;
+      for (const name of activeNames) {
+        html += _agentRowHtml(name, agents[name] || 'pending');
+      }
+    }
+
+    groupIndex++;
+  }
+  el.innerHTML = html;
+}
+
+function appendMessage(type, content) {
+  const el = document.getElementById('message-list');
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const div = document.createElement('div');
+  div.className = 'msg-line';
+  // Truncate long content
+  const truncated = content.length > 120 ? content.slice(0, 120) + '...' : content;
+  div.innerHTML = `<span class="msg-time">${time}</span><span class="msg-type">[${type}]</span><span class="msg-content">${escapeHtml(truncated)}</span>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderReport() {
+  const el = document.getElementById('report-content');
+  const parts = Object.values(reportSections).filter(Boolean);
+  if (parts.length === 0) {
+    el.textContent = 'Waiting for reports...';
+    return;
+  }
+  el.textContent = parts.join('\n\n---\n\n');
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderStats(stats) {
+  if (stats.elapsed !== undefined)
+    document.getElementById('stat-elapsed').textContent = stats.elapsed + 's';
+  if (stats.llm_calls !== undefined)
+    document.getElementById('stat-llm').textContent = stats.llm_calls;
+  if (stats.tool_calls !== undefined)
+    document.getElementById('stat-tools').textContent = stats.tool_calls;
+  if (stats.input_tokens !== undefined)
+    document.getElementById('stat-in').textContent = formatNum(stats.input_tokens);
+  if (stats.output_tokens !== undefined)
+    document.getElementById('stat-out').textContent = formatNum(stats.output_tokens);
+}
+
+function renderDbStats(dbStats) {
+  if (dbStats.reads !== undefined)
+    document.getElementById('db-reads').textContent = dbStats.reads;
+  if (dbStats.writes !== undefined)
+    document.getElementById('db-writes').textContent = dbStats.writes;
+}
+
+function updateDbPanel() {
+  const panel = document.getElementById('panel-db');
+  const msg = document.getElementById('db-disabled-msg');
+  if (currentRunMode === 'single') {
+    panel.classList.add('disabled');
+    msg.style.display = 'block';
+  } else {
+    panel.classList.remove('disabled');
+    msg.style.display = 'none';
+  }
+}
+
+function showResults(data) {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('results').classList.remove('hidden');
+
+  // Decision banner
+  const banner = document.getElementById('decision-banner');
+  const dec = data.decision || {};
+  if (dec.signal) {
+    banner.innerHTML = `
+      <div class="decision-signal">${dec.signal}</div>
+      <div class="decision-meta">
+        ${dec.confidence ? 'Confidence: ' + (dec.confidence * 100).toFixed(0) + '%' : ''}
+        ${dec.horizon ? ' &middot; Horizon: ' + dec.horizon : ''}
+      </div>`;
+  } else {
+    banner.innerHTML = '<div class="decision-signal">ANALYSIS COMPLETE</div>';
+  }
+
+  // Full report
+  document.getElementById('full-report').textContent = data.report || 'No report generated.';
+
+  // Stats
+  if (data.stats) renderStats(data.stats);
+}
+
+function showError(data) {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('results').classList.remove('hidden');
+  document.getElementById('decision-banner').innerHTML = `
+    <div class="error-box">
+      <strong>Error:</strong> ${escapeHtml(data.message || 'Unknown error')}\n\n${escapeHtml(data.traceback || '')}
+    </div>`;
+  document.getElementById('full-report').textContent = '';
+}
+
+function resetForm() {
+  document.getElementById('config-form').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('results').classList.add('hidden');
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-start').textContent = 'START ANALYSIS';
+}
+
+/* ================================================================== */
+/* Helpers                                                             */
+/* ================================================================== */
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function formatNum(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+</script>
+</body>
+</html>

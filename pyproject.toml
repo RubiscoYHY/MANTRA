@@ -34,13 +34,17 @@ dependencies = [
     "typing-extensions>=4.14.0",
     "yfinance>=0.2.63",
     "matplotlib>=3.7.0",
+    "flask>=3.1.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
 mantra = "cli.main:app"
+mantragui = "gui.app:main"
 
 [tool.setuptools.packages.find]
-include = ["tradingagents*", "cli*"]
+include = ["tradingagents*", "cli*", "gui*"]
 
 [tool.setuptools.package-data]
 cli = ["static/*"]
+gui = ["templates/*", "static/*"]

@@ -41,6 +41,7 @@ enabled=True.
 
 import hashlib
 import logging
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -154,12 +155,15 @@ class TradingMemoryStore:
     """
 
     def __init__(self, palace_path: str, enabled: bool = False):
-        self._palace_path = palace_path
+        self._palace_path = str(Path(palace_path).resolve())
         self._enabled = enabled
         self._analysis_date: Optional[str] = None  # set by trading_graph per day
         self._col = None   # lazy: chromadb collection
         self._ef: Optional[_BGEEmbeddingFunction] = None  # lazy: BGE embedding function
         self._kg = None    # lazy: KnowledgeGraph
+        self._init_lock = threading.Lock()  # guards lazy init of _col/_ef/_kg
+        self.db_reads = 0
+        self.db_writes = 0
 
     # ------------------------------------------------------------------
     # Analysis date control (called by trading_graph.py, not by agents)
@@ -194,22 +198,28 @@ class TradingMemoryStore:
 
     def _get_col(self):
         """Return (or create) the ChromaDB collection backed by BGE embeddings."""
-        if self._col is None:
-            import chromadb
-            self._ef = _BGEEmbeddingFunction()
-            client = chromadb.PersistentClient(path=self._palace_path)
-            self._col = client.get_or_create_collection(
-                "mempalace_drawers",
-                embedding_function=self._ef,
-            )
+        if self._col is not None:
+            return self._col
+        with self._init_lock:
+            if self._col is None:
+                import chromadb
+                self._ef = _BGEEmbeddingFunction()
+                client = chromadb.PersistentClient(path=self._palace_path)
+                self._col = client.get_or_create_collection(
+                    "mempalace_drawers",
+                    embedding_function=self._ef,
+                )
         return self._col
 
     def _get_kg(self):
         """Return (or create) the SQLite KnowledgeGraph."""
-        if self._kg is None:
-            from tradingagents.agents.utils.knowledge_graph import KnowledgeGraph
-            kg_path = str(Path(self._palace_path) / "kg.sqlite3")
-            self._kg = KnowledgeGraph(db_path=kg_path)
+        if self._kg is not None:
+            return self._kg
+        with self._init_lock:
+            if self._kg is None:
+                from tradingagents.agents.utils.knowledge_graph import KnowledgeGraph
+                kg_path = str(Path(self._palace_path) / "kg.sqlite3")
+                self._kg = KnowledgeGraph(db_path=kg_path)
         return self._kg
 
     # ------------------------------------------------------------------
@@ -254,6 +264,7 @@ class TradingMemoryStore:
                 "recorded_at":   now,
             }
             col.upsert(documents=[content], ids=[doc_id], metadatas=[metadata])
+            self.db_writes += 1
             logger.debug("Stored %s/%s/%s by %s", wing, room, trade_date, writer)
             return True
         except Exception as e:
@@ -311,6 +322,7 @@ class TradingMemoryStore:
                 include=["documents", "metadatas", "distances"],
             )
 
+            self.db_reads += 1
             hits = []
             for doc, meta, dist in zip(
                 results["documents"][0],
@@ -477,6 +489,7 @@ class TradingMemoryStore:
                 valid_to=td,            # single-day fact
                 confidence=1.0,
             )
+            self.db_writes += 1
             return True
         except Exception as e:
             logger.warning("annotate_return failed (%s/%s): %s", ticker, td, e)
@@ -503,6 +516,7 @@ class TradingMemoryStore:
                 valid_to=None,          # permanent historical fact
                 confidence=1.0,
             )
+            self.db_writes += 1
             return True
         except Exception as e:
             logger.warning("store_price failed (%s/%s): %s", ticker, td, e)
@@ -607,6 +621,7 @@ class TradingMemoryStore:
         try:
             kg = self._get_kg()
             rows = kg.query_entity(f"{ticker.lower()}_{date}", as_of=date)
+            self.db_reads += 1
             for row in rows:
                 if row.get("predicate") == "actual_return":
                     return float(row["object"])
@@ -626,6 +641,7 @@ class TradingMemoryStore:
         try:
             kg = self._get_kg()
             rows = kg.query_entity(f"{ticker.lower()}_{date}", as_of=date)
+            self.db_reads += 1
             for row in rows:
                 if row.get("predicate") == "close_price":
                     return float(row["object"])
