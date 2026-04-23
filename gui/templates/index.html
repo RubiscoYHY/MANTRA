@@ -15,16 +15,16 @@
   --bg-card:     #141A16;
   --bg-hover:    #1C2420;
   --bg-input:    #111714;
-  --accent:      #C2A67E;
-  --accent-dim:  #8B7355;
-  --accent-glow: rgba(194,166,126,.12);
-  --text:        #D8CEBC;
-  --text-dim:    #8A8070;
-  --text-faint:  #5A5348;
-  --border:      #2A322C;
-  --success:     #5A9E6F;
-  --error:       #C25050;
-  --warning:     #C2A050;
+  --accent:      #D4BA96;
+  --accent-dim:  #A08A6A;
+  --accent-glow: rgba(212,186,150,.12);
+  --text:        #E5DCCC;
+  --text-dim:    #9E9484;
+  --text-faint:  #6E675C;
+  --border:      #354039;
+  --success:     #6DB082;
+  --error:       #D06464;
+  --warning:     #D0B060;
   --radius:      8px;
   --font:        'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
 }
@@ -278,19 +278,19 @@ select option { background: var(--bg-card); color: var(--text); }
   vertical-align: middle;
 }
 .exec-mode-badge.parallel {
-  background: rgba(90,158,111,.15);
+  background: rgba(109,176,130,.15);
   color: var(--success);
-  border: 1px solid rgba(90,158,111,.3);
+  border: 1px solid rgba(109,176,130,.3);
 }
 .exec-mode-badge.sequential {
-  background: rgba(194,160,80,.15);
+  background: rgba(208,176,96,.15);
   color: var(--warning);
-  border: 1px solid rgba(194,160,80,.3);
+  border: 1px solid rgba(208,176,96,.3);
 }
 
 /* Parallel group bracket */
 .parallel-group {
-  border-left: 2px solid rgba(90,158,111,.4);
+  border-left: 2px solid rgba(109,176,130,.4);
   margin-left: 0.3rem;
   padding-left: 0.5rem;
   position: relative;
@@ -302,7 +302,7 @@ select option { background: var(--bg-card); color: var(--text); }
   top: 0;
   width: 6px;
   height: 2px;
-  background: rgba(90,158,111,.4);
+  background: rgba(109,176,130,.4);
 }
 .parallel-group::after {
   content: '';
@@ -311,12 +311,12 @@ select option { background: var(--bg-card); color: var(--text); }
   bottom: 0;
   width: 6px;
   height: 2px;
-  background: rgba(90,158,111,.4);
+  background: rgba(109,176,130,.4);
 }
 
 /* Debate loop container with recycling arrow */
 .debate-loop {
-  border-left: 2px solid rgba(194,160,80,.35);
+  border-left: 2px solid rgba(208,176,96,.35);
   margin-left: 0.3rem;
   padding-left: 0.5rem;
   position: relative;
@@ -432,7 +432,7 @@ select option { background: var(--bg-card); color: var(--text); }
 .msg-line {
   font-size: 0.72rem;
   padding: 0.15rem 0;
-  border-bottom: 1px solid rgba(42,50,44,.4);
+  border-bottom: 1px solid rgba(53,64,57,.4);
 }
 .msg-time { color: var(--text-faint); margin-right: 0.4rem; }
 .msg-type { color: var(--accent-dim); margin-right: 0.3rem; }
@@ -562,7 +562,7 @@ select option { background: var(--bg-card); color: var(--text); }
 
 /* Error */
 .error-box {
-  background: rgba(194,80,80,.1);
+  background: rgba(208,100,100,.1);
   border: 1px solid var(--error);
   border-radius: var(--radius);
   padding: 1rem;
