@@ -1,10 +1,9 @@
-import functools
-
 from tradingagents.agents.utils.agent_utils import build_instrument_context
+from tradingagents.agents.utils.memory_store import build_situation_digest
 
 
 def create_trader(llm, memory_store):
-    def trader_node(state, name):
+    def trader_node(state):
         company_name = state["company_of_interest"]
         instrument_context = build_instrument_context(company_name)
         investment_plan = state["investment_plan"]
@@ -13,17 +12,18 @@ def create_trader(llm, memory_store):
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
 
-        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
-        past_memories = memory_store.retrieve_reflections(
-            ticker=company_name, role="trader", query=curr_situation, n_results=2
+        # Query with the same compact digest used when reflections were stored,
+        # so query and document embeddings live in the same representation space.
+        situation_digest = build_situation_digest(
+            market_research_report, sentiment_report, news_report, fundamentals_report
         )
-
-        past_memory_str = ""
-        if past_memories:
-            for hit in past_memories:
-                past_memory_str += hit["text"] + "\n\n"
-        else:
-            past_memory_str = "No past memories found."
+        past_memories = memory_store.retrieve_reflections(
+            ticker=company_name, role="trader", query=situation_digest, n_results=2
+        )
+        past_memory_str = (
+            "\n\n".join(hit["text"] for hit in past_memories)
+            if past_memories else "No sufficiently similar past situation found."
+        )
 
         context = {
             "role": "user",
@@ -43,7 +43,6 @@ def create_trader(llm, memory_store):
         return {
             "messages": [result],
             "trader_investment_plan": result.content,
-            "sender": name,
         }
 
-    return functools.partial(trader_node, name="Trader")
+    return trader_node

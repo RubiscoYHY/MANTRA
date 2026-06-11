@@ -12,10 +12,25 @@ Writer → Room → Backend routing:
     News Analyst        → room "news"          → ChromaDB   expires trade_date + 3d
     Market Analyst      → room "market"        → ChromaDB   expires trade_date + 7d
     Fundamentals Analyst→ room "fundamentals"  → ChromaDB   expires trade_date + 365d
-    Portfolio Manager   → room "lessons"       → ChromaDB   never expires,
+    Reflector           → room "reflections_*" → ChromaDB   never expires,
                                                              valid_from = trade_date + 1d
     Reflector           → KG triple            → SQLite KG  single-day fact
     Data pipeline       → KG triple            → SQLite KG  permanent historical fact
+
+Embedding ownership
+-------------------
+Document vectors are computed by this class and passed to ChromaDB explicitly
+(col.upsert(embeddings=...)). The collection is created WITHOUT an attached
+embedding_function: chromadb's EmbeddingFunction interface has changed across
+versions (e.g. 1.x requires .name()) and an attached custom EF caused every
+query to fail silently. Keeping embedding on our side of the boundary makes
+the store independent of that interface.
+
+Error policy
+------------
+The store is only enabled in backtest mode. Read/write failures raise
+immediately (fail fast) instead of degrading to empty results — a silent
+no-memory backtest produces scientifically invalid comparisons.
 
 Causal isolation
 ----------------
@@ -41,6 +56,7 @@ enabled=True.
 
 import hashlib
 import logging
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -95,6 +111,23 @@ class _BGEEmbeddingFunction:
         return vec.tolist()
 
 
+# Process-wide shared embedding function. The BGE model is ~400MB in RAM;
+# TradingMemoryStore and FilingStore must share ONE instance (injected, never
+# instantiated per-store).
+_shared_ef: Optional[_BGEEmbeddingFunction] = None
+_shared_ef_lock = threading.Lock()
+
+
+def get_shared_embedding_fn() -> _BGEEmbeddingFunction:
+    """Return the process-wide BGE embedding function (lazily created once)."""
+    global _shared_ef
+    if _shared_ef is None:
+        with _shared_ef_lock:
+            if _shared_ef is None:
+                _shared_ef = _BGEEmbeddingFunction()
+    return _shared_ef
+
+
 # Sentinel for "never expires". Stored as integer YYYYMMDD (99991231) so
 # ChromaDB $lte/$gte operators (numeric-only) work correctly.
 _NEVER_EXPIRES = 99991231
@@ -110,7 +143,6 @@ _EXPIRY_DAYS: dict[str, Optional[int]] = {
     "news":         3,
     "market":       7,
     "fundamentals": 365,
-    "lessons":      None,
     # Role-specific reflection rooms (replaces FinancialSituationMemory / BM25)
     "reflections_bull":               None,
     "reflections_bear":               None,
@@ -118,6 +150,39 @@ _EXPIRY_DAYS: dict[str, Optional[int]] = {
     "reflections_invest_judge":       None,
     "reflections_portfolio_manager":  None,
 }
+
+
+def build_situation_digest(
+    market_report: str,
+    sentiment_report: str,
+    news_report: str,
+    fundamentals_report: str,
+    per_section_chars: int = 500,
+) -> str:
+    """
+    Deterministic compact digest of the four analyst reports.
+
+    Used symmetrically as (a) the embedded text when storing reflections and
+    (b) the query text at retrieval time, so query and document stay in the
+    same representation space AND fit inside the embedding model's 512-token
+    window. Full reports concatenated exceed that window, which means most of
+    the text (including the lesson) never reached the vector at all.
+
+    Head-truncation per report is intentional: each analyst report leads with
+    its core finding, and a deterministic digest avoids an extra LLM call.
+    """
+    sections = [
+        ("Market", market_report),
+        ("Sentiment", sentiment_report),
+        ("News", news_report),
+        ("Fundamentals", fundamentals_report),
+    ]
+    parts = []
+    for label, text in sections:
+        t = (text or "").strip()
+        if t:
+            parts.append(f"{label}: {t[:per_section_chars]}")
+    return "\n".join(parts)
 
 
 def _expiry_date(room: str, from_date: str) -> int:
@@ -153,13 +218,22 @@ class TradingMemoryStore:
         results = store.retrieve_similar_sentiment(ticker, query)
     """
 
-    def __init__(self, palace_path: str, enabled: bool = False):
-        self._palace_path = palace_path
+    def __init__(
+        self,
+        palace_path: str,
+        enabled: bool = False,
+        min_similarity: float = 0.45,
+    ):
+        self._palace_path = str(Path(palace_path).resolve())
         self._enabled = enabled
+        self._min_similarity = min_similarity
         self._analysis_date: Optional[str] = None  # set by trading_graph per day
         self._col = None   # lazy: chromadb collection
         self._ef: Optional[_BGEEmbeddingFunction] = None  # lazy: BGE embedding function
         self._kg = None    # lazy: KnowledgeGraph
+        self._init_lock = threading.Lock()  # guards lazy init of _col/_ef/_kg
+        self.db_reads = 0
+        self.db_writes = 0
 
     # ------------------------------------------------------------------
     # Analysis date control (called by trading_graph.py, not by agents)
@@ -193,23 +267,42 @@ class TradingMemoryStore:
     # ------------------------------------------------------------------
 
     def _get_col(self):
-        """Return (or create) the ChromaDB collection backed by BGE embeddings."""
-        if self._col is None:
-            import chromadb
-            self._ef = _BGEEmbeddingFunction()
-            client = chromadb.PersistentClient(path=self._palace_path)
-            self._col = client.get_or_create_collection(
-                "mempalace_drawers",
-                embedding_function=self._ef,
-            )
+        """Return (or create) the ChromaDB collection.
+
+        No embedding_function is attached: vectors are computed by this class
+        and passed explicitly on both the write path (upsert embeddings=) and
+        the read path (query_embeddings=). See module docstring.
+        """
+        if self._col is not None:
+            return self._col
+        with self._init_lock:
+            if self._col is None:
+                import chromadb
+                client = chromadb.PersistentClient(path=self._palace_path)
+                # Cosine space is required for the similarity = 1 - distance
+                # conversion in _search_text(). Chroma's default is L2, under
+                # which that formula (and any threshold on it) is mis-scaled.
+                self._col = client.get_or_create_collection(
+                    "mempalace_drawers",
+                    metadata={"hnsw:space": "cosine"},
+                )
         return self._col
+
+    def _get_ef(self) -> _BGEEmbeddingFunction:
+        """Return the process-wide shared BGE embedding function."""
+        if self._ef is None:
+            self._ef = get_shared_embedding_fn()
+        return self._ef
 
     def _get_kg(self):
         """Return (or create) the SQLite KnowledgeGraph."""
-        if self._kg is None:
-            from tradingagents.agents.utils.knowledge_graph import KnowledgeGraph
-            kg_path = str(Path(self._palace_path) / "kg.sqlite3")
-            self._kg = KnowledgeGraph(db_path=kg_path)
+        if self._kg is not None:
+            return self._kg
+        with self._init_lock:
+            if self._kg is None:
+                from tradingagents.agents.utils.knowledge_graph import KnowledgeGraph
+                kg_path = str(Path(self._palace_path) / "kg.sqlite3")
+                self._kg = KnowledgeGraph(db_path=kg_path)
         return self._kg
 
     # ------------------------------------------------------------------
@@ -225,12 +318,19 @@ class TradingMemoryStore:
         valid_from: str,
         expires_at: str,
         writer: str,
+        embed_text: Optional[str] = None,
     ) -> bool:
         """
         Write one Drawer to ChromaDB with extended metadata schema.
 
         The Drawer ID is deterministic (wing + room + trade_date), so calling
         this twice for the same ticker/room/date replaces the previous entry.
+
+        Args:
+            embed_text: Text to embed instead of `content`. Lets callers store
+                a full document while matching against a compact digest.
+
+        Raises on storage failure (fail fast — see module docstring).
         """
         if not self._enabled:
             return False
@@ -253,14 +353,22 @@ class TradingMemoryStore:
                 "expires_at":    expires_at,  # already int from _expiry_date()
                 "recorded_at":   now,
             }
-            col.upsert(documents=[content], ids=[doc_id], metadatas=[metadata])
+            vec = self._get_ef()([embed_text if embed_text is not None else content])[0]
+            col.upsert(
+                documents=[content],
+                embeddings=[vec],
+                ids=[doc_id],
+                metadatas=[metadata],
+            )
+            self.db_writes += 1
             logger.debug("Stored %s/%s/%s by %s", wing, room, trade_date, writer)
             return True
-        except Exception as e:
-            logger.warning(
-                "MemoryStore write failed (%s/%s/%s): %s", ticker, room, trade_date, e
+        except Exception:
+            logger.error(
+                "MemoryStore write failed (%s/%s/%s)", ticker, room, trade_date,
+                exc_info=True,
             )
-            return False
+            raise
 
     # ------------------------------------------------------------------
     # Internal: ChromaDB read with causal isolation + expiry filter
@@ -280,7 +388,10 @@ class TradingMemoryStore:
             expires_at >= as_of   (exclude stale memories)
 
         Returns a list of result dicts, sorted by similarity descending.
-        Returns [] when disabled or on any error.
+        Hits below self._min_similarity are dropped: injecting a barely
+        related "lesson" into an agent prompt is worse than injecting nothing.
+
+        Returns [] when disabled; raises on backend failure (fail fast).
         """
         if not self._enabled:
             return []
@@ -303,7 +414,7 @@ class TradingMemoryStore:
 
             # Use encode_query() so the BGE asymmetric prefix is applied
             # to the query vector while stored documents remain prefix-free.
-            query_vec = self._ef.encode_query(query)
+            query_vec = self._get_ef().encode_query(query)
             results = col.query(
                 query_embeddings=[query_vec],
                 n_results=n_results,
@@ -311,28 +422,33 @@ class TradingMemoryStore:
                 include=["documents", "metadatas", "distances"],
             )
 
+            self.db_reads += 1
             hits = []
             for doc, meta, dist in zip(
                 results["documents"][0],
                 results["metadatas"][0],
                 results["distances"][0],
             ):
+                similarity = round(1.0 - dist, 3)
+                if similarity < self._min_similarity:
+                    continue
                 hits.append({
                     "text":       doc,
                     "wing":       meta.get("wing"),
                     "room":       meta.get("room"),
                     "trade_date": meta.get("trade_date"),
                     "valid_from": meta.get("valid_from"),
-                    "similarity": round(1.0 - dist, 3),
+                    "similarity": similarity,
                     "writer":     meta.get("added_by"),
                 })
             return hits
 
-        except Exception as e:
-            logger.warning(
-                "MemoryStore search failed (%s/%s as_of=%s): %s", wing, room, as_of, e
+        except Exception:
+            logger.error(
+                "MemoryStore search failed (%s/%s as_of=%s)", wing, room, as_of,
+                exc_info=True,
             )
-            return []
+            raise
 
     # ==================================================================
     # PUBLIC WRITE API
@@ -404,50 +520,6 @@ class TradingMemoryStore:
             writer="fundamentals_analyst",
         )
 
-    def store_lesson(
-        self,
-        ticker: str,
-        lesson: str,
-        decision: str = "",
-        outcome: str = "",
-    ) -> bool:
-        """
-        Portfolio Manager: post-trade lesson derived from this day's decision.
-
-        Backend: ChromaDB. Room: "lessons". Never expires.
-        Causal isolation: valid_from = analysis_date + 1 day, so this lesson
-        cannot influence an analysis run on the same day it is recorded.
-
-        Args:
-            lesson:   What should be done differently next time.
-            decision: The decision made today (BUY / SELL / HOLD + rationale).
-            outcome:  Qualitative outcome (filled in together with actual_return).
-        """
-        if not self._enabled:
-            return False
-        td = self._require_date()
-        next_day = (
-            datetime.fromisoformat(td) + timedelta(days=1)
-        ).strftime("%Y-%m-%d")
-
-        content = lesson
-        if decision or outcome:
-            parts = []
-            if decision:
-                parts.append(f"Decision: {decision}")
-            if outcome:
-                parts.append(f"Outcome: {outcome}")
-            parts.append(f"Lesson: {lesson}")
-            content = "\n".join(parts)
-
-        return self._store_text(
-            ticker=ticker, room="lessons", trade_date=td,
-            content=content,
-            valid_from=next_day,        # +1 day: causal isolation gate
-            expires_at=_NEVER_EXPIRES,
-            writer="portfolio_manager",
-        )
-
     def annotate_return(self, ticker: str, actual_return: float) -> bool:
         """
         Reflector: record the actual return for ticker on the current analysis date.
@@ -477,6 +549,7 @@ class TradingMemoryStore:
                 valid_to=td,            # single-day fact
                 confidence=1.0,
             )
+            self.db_writes += 1
             return True
         except Exception as e:
             logger.warning("annotate_return failed (%s/%s): %s", ticker, td, e)
@@ -503,6 +576,7 @@ class TradingMemoryStore:
                 valid_to=None,          # permanent historical fact
                 confidence=1.0,
             )
+            self.db_writes += 1
             return True
         except Exception as e:
             logger.warning("store_price failed (%s/%s): %s", ticker, td, e)
@@ -529,70 +603,16 @@ class TradingMemoryStore:
         """
         if not self._enabled:
             return []
-        return self._search_text(
+        hits = self._search_text(
             query=query,
             wing=ticker.lower(),
             room="sentiment",
             as_of=self._require_date(),
             n_results=n_results,
         )
-
-    def retrieve_sector_sentiment(
-        self,
-        related_tickers: list[str],
-        query: str,
-        n_results: int = 2,
-    ) -> list[dict]:
-        """
-        Cross-wing L3: search historical sentiment across sector peers.
-
-        Searches each ticker in related_tickers independently, then returns
-        the top n_results hits by similarity score across all wings. The Tunnel
-        structure (same room "sentiment" across wings) makes this natural.
-
-        Args:
-            related_tickers: peer tickers, e.g. ["amd", "intc"] when analysing NVDA.
-            n_results:       total hits to return across all tickers combined.
-        """
-        if not self._enabled:
-            return []
-        as_of = self._require_date()
-        all_hits: list[dict] = []
-        for ticker in related_tickers:
-            hits = self._search_text(
-                query=query,
-                wing=ticker.lower(),
-                room="sentiment",
-                as_of=as_of,
-                n_results=n_results,
-            )
-            all_hits.extend(hits)
-
-        all_hits.sort(key=lambda h: h["similarity"], reverse=True)
-        return all_hits[:n_results]
-
-    def retrieve_lessons(
-        self,
-        ticker: str,
-        query: str,
-        n_results: int = 3,
-    ) -> list[dict]:
-        """
-        L3 semantic search: find relevant past lessons for ticker.
-
-        Causal isolation is enforced automatically: lessons with valid_from
-        = today are excluded (they were recorded today and must not feed back
-        into today's analysis). Only lessons from previous days are returned.
-        """
-        if not self._enabled:
-            return []
-        return self._search_text(
-            query=query,
-            wing=ticker.lower(),
-            room="lessons",
-            as_of=self._require_date(),
-            n_results=n_results,
-        )
+        from tradingagents.observability import get_recorder
+        get_recorder().memory_event("Social Analyst", "sentiment", query, hits)
+        return hits
 
     def get_historical_return(self, ticker: str, date: str) -> Optional[float]:
         """
@@ -607,6 +627,7 @@ class TradingMemoryStore:
         try:
             kg = self._get_kg()
             rows = kg.query_entity(f"{ticker.lower()}_{date}", as_of=date)
+            self.db_reads += 1
             for row in rows:
                 if row.get("predicate") == "actual_return":
                     return float(row["object"])
@@ -626,6 +647,7 @@ class TradingMemoryStore:
         try:
             kg = self._get_kg()
             rows = kg.query_entity(f"{ticker.lower()}_{date}", as_of=date)
+            self.db_reads += 1
             for row in rows:
                 if row.get("predicate") == "close_price":
                     return float(row["object"])
@@ -651,8 +673,11 @@ class TradingMemoryStore:
         Args:
             role:           Agent role key, one of: bull, bear, trader,
                             invest_judge, portfolio_manager.
-            situation:      Concatenated analyst reports describing today's market.
-            recommendation: LLM-generated reflection / lesson learned.
+            situation:      Compact situation digest (build_situation_digest()).
+                            This is what gets EMBEDDED, so retrieval matches
+                            situation-to-situation in a consistent space.
+            recommendation: LLM-generated reflection / lesson learned. Stored
+                            in the document body and returned on retrieval.
         """
         if not self._enabled:
             return False
@@ -661,13 +686,14 @@ class TradingMemoryStore:
             datetime.fromisoformat(td) + timedelta(days=1)
         ).strftime("%Y-%m-%d")
         room = f"reflections_{role}"
-        content = f"Situation:\n{situation}\n\nLesson:\n{recommendation}"
+        content = f"Situation (digest):\n{situation}\n\nLesson:\n{recommendation}"
         return self._store_text(
             ticker=ticker, room=room, trade_date=td,
             content=content,
             valid_from=next_day,
             expires_at=_NEVER_EXPIRES,
             writer=role,
+            embed_text=situation,
         )
 
     def record_calibration_point(
@@ -756,10 +782,24 @@ class TradingMemoryStore:
         """
         if not self._enabled:
             return []
-        return self._search_text(
+        hits = self._search_text(
             query=query,
             wing=ticker.lower(),
             room=f"reflections_{role}",
             as_of=self._require_date(),
             n_results=n_results,
         )
+        # Attribute the retrieval to the graph node that performs it, so the
+        # agent monitor shows each agent's memory reads alongside its IO.
+        _ROLE_TO_AGENT = {
+            "bull": "Researcher Round",
+            "bear": "Researcher Round",
+            "trader": "Trader",
+            "invest_judge": "Research Manager",
+            "portfolio_manager": "Portfolio Manager",
+        }
+        from tradingagents.observability import get_recorder
+        get_recorder().memory_event(
+            _ROLE_TO_AGENT.get(role, role), f"reflections_{role}", query, hits
+        )
+        return hits

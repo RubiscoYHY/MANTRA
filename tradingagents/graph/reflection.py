@@ -2,6 +2,8 @@
 
 from typing import Any, Dict
 
+from tradingagents.agents.utils.memory_store import build_situation_digest
+
 
 class Reflector:
     """Handles reflection on decisions and updating memory."""
@@ -46,13 +48,28 @@ Adhere strictly to these instructions, and ensure your output is detailed, accur
 """
 
     def _extract_current_situation(self, current_state: Dict[str, Any]) -> str:
-        """Extract the current market situation from the state."""
+        """Full concatenation of the four reports — context for the reflection LLM."""
         curr_market_report = current_state["market_report"]
         curr_sentiment_report = current_state["sentiment_report"]
         curr_news_report = current_state["news_report"]
         curr_fundamentals_report = current_state["fundamentals_report"]
 
         return f"{curr_market_report}\n\n{curr_sentiment_report}\n\n{curr_news_report}\n\n{curr_fundamentals_report}"
+
+    def _situation_digest(self, current_state: Dict[str, Any]) -> str:
+        """Compact digest used as the stored/embedded situation key.
+
+        The reflection LLM reads the FULL reports (richer context), but what
+        gets embedded for later retrieval is this digest: full concatenations
+        exceed the embedding model's 512-token window, so most of the text
+        never reached the vector at all.
+        """
+        return build_situation_digest(
+            current_state["market_report"],
+            current_state["sentiment_report"],
+            current_state["news_report"],
+            current_state["fundamentals_report"],
+        )
 
     def _reflect_on_component(
         self, component_type: str, report: str, situation: str, returns_losses
@@ -72,6 +89,7 @@ Adhere strictly to these instructions, and ensure your output is detailed, accur
     def reflect_bull_researcher(self, current_state, returns_losses, memory_store):
         """Reflect on bull researcher's analysis and persist to memory store."""
         situation = self._extract_current_situation(current_state)
+        digest = self._situation_digest(current_state)
         bull_debate_history = current_state["investment_debate_state"]["bull_history"]
         ticker = current_state["company_of_interest"]
 
@@ -79,11 +97,12 @@ Adhere strictly to these instructions, and ensure your output is detailed, accur
             "BULL", bull_debate_history, situation, returns_losses
         )
         memory_store.store_reflection(ticker=ticker, role="bull",
-                                      situation=situation, recommendation=result)
+                                      situation=digest, recommendation=result)
 
     def reflect_bear_researcher(self, current_state, returns_losses, memory_store):
         """Reflect on bear researcher's analysis and persist to memory store."""
         situation = self._extract_current_situation(current_state)
+        digest = self._situation_digest(current_state)
         bear_debate_history = current_state["investment_debate_state"]["bear_history"]
         ticker = current_state["company_of_interest"]
 
@@ -91,11 +110,12 @@ Adhere strictly to these instructions, and ensure your output is detailed, accur
             "BEAR", bear_debate_history, situation, returns_losses
         )
         memory_store.store_reflection(ticker=ticker, role="bear",
-                                      situation=situation, recommendation=result)
+                                      situation=digest, recommendation=result)
 
     def reflect_trader(self, current_state, returns_losses, memory_store):
         """Reflect on trader's decision and persist to memory store."""
         situation = self._extract_current_situation(current_state)
+        digest = self._situation_digest(current_state)
         trader_decision = current_state["trader_investment_plan"]
         ticker = current_state["company_of_interest"]
 
@@ -103,11 +123,12 @@ Adhere strictly to these instructions, and ensure your output is detailed, accur
             "TRADER", trader_decision, situation, returns_losses
         )
         memory_store.store_reflection(ticker=ticker, role="trader",
-                                      situation=situation, recommendation=result)
+                                      situation=digest, recommendation=result)
 
     def reflect_invest_judge(self, current_state, returns_losses, memory_store):
         """Reflect on investment judge's decision and persist to memory store."""
         situation = self._extract_current_situation(current_state)
+        digest = self._situation_digest(current_state)
         judge_decision = current_state["investment_debate_state"]["judge_decision"]
         ticker = current_state["company_of_interest"]
 
@@ -115,11 +136,12 @@ Adhere strictly to these instructions, and ensure your output is detailed, accur
             "INVEST JUDGE", judge_decision, situation, returns_losses
         )
         memory_store.store_reflection(ticker=ticker, role="invest_judge",
-                                      situation=situation, recommendation=result)
+                                      situation=digest, recommendation=result)
 
     def reflect_portfolio_manager(self, current_state, returns_losses, memory_store):
         """Reflect on portfolio manager's decision and persist to memory store."""
         situation = self._extract_current_situation(current_state)
+        digest = self._situation_digest(current_state)
         judge_decision = current_state["risk_debate_state"]["judge_decision"]
         ticker = current_state["company_of_interest"]
 
@@ -127,4 +149,4 @@ Adhere strictly to these instructions, and ensure your output is detailed, accur
             "PORTFOLIO MANAGER", judge_decision, situation, returns_losses
         )
         memory_store.store_reflection(ticker=ticker, role="portfolio_manager",
-                                      situation=situation, recommendation=result)
+                                      situation=digest, recommendation=result)

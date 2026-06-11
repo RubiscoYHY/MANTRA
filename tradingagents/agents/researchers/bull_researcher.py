@@ -1,3 +1,4 @@
+from tradingagents.agents.utils.memory_store import build_situation_digest
 
 
 def _build_bull_argument(state: dict, llm, memory_store) -> str:
@@ -20,14 +21,18 @@ def _build_bull_argument(state: dict, llm, memory_store) -> str:
     news_report = state["news_report"]
     fundamentals_report = state["fundamentals_report"]
 
-    curr_situation = (
-        f"{market_research_report}\n\n{sentiment_report}\n\n"
-        f"{news_report}\n\n{fundamentals_report}"
+    # Query with the same compact digest used when reflections were stored,
+    # so query and document embeddings live in the same representation space.
+    situation_digest = build_situation_digest(
+        market_research_report, sentiment_report, news_report, fundamentals_report
     )
     past_memories = memory_store.retrieve_reflections(
-        ticker=ticker, role="bull", query=curr_situation, n_results=2
+        ticker=ticker, role="bull", query=situation_digest, n_results=2
     )
-    past_memory_str = "".join(hit["text"] + "\n\n" for hit in past_memories)
+    past_memory_str = (
+        "\n\n".join(hit["text"] for hit in past_memories)
+        if past_memories else "No sufficiently similar past situation found."
+    )
 
     prompt = f"""You are a Bull Analyst. Your role is to build the strongest possible evidence-based case for why investing in this stock is warranted.
 
@@ -65,32 +70,3 @@ Reflections from similar situations and lessons learned: {past_memory_str}"""
 
     response = llm.invoke(prompt)
     return response.content
-
-
-def create_bull_researcher(llm, memory_store):
-    """
-    Backward-compatible LangGraph node wrapper around _build_bull_argument.
-
-    Not wired into the graph in the Judge architecture; retained so that any
-    external code importing create_bull_researcher continues to work.
-    """
-    def bull_node(state) -> dict:
-        investment_debate_state = state["investment_debate_state"]
-        argument = f"Bull Analyst: {_build_bull_argument(state, llm, memory_store)}"
-
-        new_investment_debate_state = {
-            "history": investment_debate_state.get("history", "") + "\n" + argument,
-            "bull_history": investment_debate_state.get("bull_history", "") + "\n" + argument,
-            "bear_history": investment_debate_state.get("bear_history", ""),
-            "current_response": argument,
-            "judge_decision": investment_debate_state.get("judge_decision", ""),
-            "count": investment_debate_state.get("count", 0) + 1,
-            "judge_history": investment_debate_state.get("judge_history", ""),
-            "judge_critique_bull": investment_debate_state.get("judge_critique_bull", ""),
-            "judge_critique_bear": investment_debate_state.get("judge_critique_bear", ""),
-            "judge_count": investment_debate_state.get("judge_count", 0),
-        }
-
-        return {"investment_debate_state": new_investment_debate_state}
-
-    return bull_node

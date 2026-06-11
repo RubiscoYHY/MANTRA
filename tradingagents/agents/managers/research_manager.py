@@ -1,5 +1,6 @@
 
 from tradingagents.agents.utils.agent_utils import build_instrument_context
+from tradingagents.agents.utils.memory_store import build_situation_digest
 
 
 def create_research_manager(llm, memory_store):
@@ -14,14 +15,16 @@ def create_research_manager(llm, memory_store):
 
         investment_debate_state = state["investment_debate_state"]
 
-        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
-        past_memories = memory_store.retrieve_reflections(
-            ticker=ticker, role="invest_judge", query=curr_situation, n_results=2
+        situation_digest = build_situation_digest(
+            market_research_report, sentiment_report, news_report, fundamentals_report
         )
-
-        past_memory_str = ""
-        for hit in past_memories:
-            past_memory_str += hit["text"] + "\n\n"
+        past_memories = memory_store.retrieve_reflections(
+            ticker=ticker, role="invest_judge", query=situation_digest, n_results=2
+        )
+        past_memory_str = (
+            "\n\n".join(hit["text"] for hit in past_memories)
+            if past_memories else "No sufficiently similar past situation found."
+        )
 
         prompt = f"""You are the Research Manager. Your role is to synthesize the outcome of a Judge-mediated investment debate and produce a definitive investment recommendation. You are the final decision-maker of the research phase. You do not facilitate the debate — that was the Judge's role — and you are not the Portfolio Manager, who makes the final trading decision downstream.
 
@@ -51,7 +54,7 @@ Take into account your reflections from similar past situations. Use these to re
 
 OUTPUT STRUCTURE — use the following three sections:
 
-Recommendation: State Buy, Sell, or Hold. Avoid Hold unless the surviving arguments from both sides are genuinely balanced after applying the four steps above; do not use Hold as a default when the analysis is difficult.
+Recommendation: State Buy, Sell, or Hold. Avoid Hold unless the surviving arguments from both sides are genuinely balanced after applying the four steps above; do not use Hold as a default when the analysis is difficult. Buy and Sell are equally decisive choices; a well-supported bearish case warrants Sell just as unambiguously as a well-supported bullish case warrants Buy.
 
 Reasoning: Explain which surviving arguments drove your conclusion and why. For each unresolved conflict identified in Step 3, state explicitly why it does or does not change your recommendation.
 

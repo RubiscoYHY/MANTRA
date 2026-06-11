@@ -1,4 +1,5 @@
 from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction
+from tradingagents.agents.utils.memory_store import build_situation_digest
 
 
 def create_portfolio_manager(llm, memory_store):
@@ -16,14 +17,16 @@ def create_portfolio_manager(llm, memory_store):
         research_plan = state["investment_plan"]
         trader_plan = state["trader_investment_plan"]
 
-        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
-        past_memories = memory_store.retrieve_reflections(
-            ticker=ticker, role="portfolio_manager", query=curr_situation, n_results=2
+        situation_digest = build_situation_digest(
+            market_research_report, sentiment_report, news_report, fundamentals_report
         )
-
-        past_memory_str = ""
-        for hit in past_memories:
-            past_memory_str += hit["text"] + "\n\n"
+        past_memories = memory_store.retrieve_reflections(
+            ticker=ticker, role="portfolio_manager", query=situation_digest, n_results=2
+        )
+        past_memory_str = (
+            "\n\n".join(hit["text"] for hit in past_memories)
+            if past_memories else "No sufficiently similar past situation found."
+        )
 
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
