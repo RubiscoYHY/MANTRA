@@ -23,17 +23,18 @@ MODEL_OPTIONS: ProviderModeOptions = {
             ("GPT-5.4 Pro - Most capable, expensive ($30/$180 per 1M tokens)", "gpt-5.4-pro"),
         ],
     },
+    # Anthropic IDs verified against GET /v1/models on 2026-06-11.
     "anthropic": {
         "quick": [
             ("Claude Sonnet 4.6 - Best speed and intelligence balance", "claude-sonnet-4-6"),
-            ("Claude Haiku 4.5 - Fast, near-instant responses", "claude-haiku-4-5"),
-            ("Claude Sonnet 4.5 - Agents and coding", "claude-sonnet-4-5"),
+            ("Claude Haiku 4.5 - Fast, near-instant responses", "claude-haiku-4-5-20251001"),
+            ("Claude Sonnet 4.5 - Agents and coding", "claude-sonnet-4-5-20250929"),
         ],
         "deep": [
-            ("Claude Opus 4.6 - Most intelligent, agents and coding", "claude-opus-4-6"),
-            ("Claude Opus 4.5 - Premium, max intelligence", "claude-opus-4-5"),
+            ("Claude Opus 4.8 - Most intelligent, agents and coding", "claude-opus-4-8"),
+            ("Claude Opus 4.7 - Premium, max intelligence", "claude-opus-4-7"),
+            ("Claude Opus 4.6 - Strong agents and coding", "claude-opus-4-6"),
             ("Claude Sonnet 4.6 - Best speed and intelligence balance", "claude-sonnet-4-6"),
-            ("Claude Sonnet 4.5 - Agents and coding", "claude-sonnet-4-5"),
         ],
     },
     "google": {

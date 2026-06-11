@@ -30,7 +30,9 @@ from tradingagents.agents.utils.agent_utils import (
     get_income_statement,
     get_news,
     get_insider_transactions,
-    get_global_news
+    get_global_news,
+    search_10k,
+    search_earnings_call,
 )
 
 from .conditional_logic import ConditionalLogic
@@ -101,6 +103,7 @@ class TradingAgentsGraph:
         self.memory_store = TradingMemoryStore(
             palace_path=self.config.get("memory_palace_path", "./memory"),
             enabled=use_mem,
+            min_similarity=self.config.get("memory_min_similarity", 0.45),
         )
 
         # Create tool nodes
@@ -179,16 +182,21 @@ class TradingAgentsGraph:
 
         kwargs = {}
 
+        from tradingagents.llm_clients.validators import validate_effort_param
+
         if provider == "google":
             thinking_level = self.config.get("google_thinking_level")
+            validate_effort_param("google_thinking_level", thinking_level)
             if thinking_level:
                 kwargs["thinking_level"] = thinking_level
         elif provider == "openai":
             reasoning_effort = self.config.get("openai_reasoning_effort")
+            validate_effort_param("openai_reasoning_effort", reasoning_effort)
             if reasoning_effort:
                 kwargs["reasoning_effort"] = reasoning_effort
         elif provider == "anthropic":
             effort = self.config.get("anthropic_effort")
+            validate_effort_param("anthropic_effort", effort)
             if effort:
                 kwargs["effort"] = effort
 
@@ -229,47 +237,127 @@ class TradingAgentsGraph:
                     get_balance_sheet,
                     get_cashflow,
                     get_income_statement,
+                    # 10-K/10-Q RAG over SEC EDGAR filings
+                    search_10k,
+                    # Earnings call transcript RAG
+                    search_earnings_call,
                 ]
             ),
         }
 
     def propagate(self, company_name, trade_date):
-        """Run the trading agents graph for a company on a specific date."""
+        """Run the trading agents graph for a company on a specific date.
+
+        Run recording & replay: every run writes a full intermediate-step
+        record to runs/{ticker}/{date}.json. When a completed record with the
+        same config digest already exists and ``reuse_cached_run`` is True,
+        the recorded result is returned without invoking the pipeline
+        (LLM output is non-deterministic; replay keeps same-day re-runs
+        reproducible and free).
+        """
+        from tradingagents.observability import (
+            RunRecorder, config_digest, find_replayable, set_recorder,
+        )
 
         self.memory_store.set_analysis_date(str(trade_date))
         self.ticker = company_name
+        self._last_was_replay = False
 
-        # Initialize state
-        init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date
+        runs_dir = self.config.get("runs_dir", "./runs")
+        digest = config_digest(self.config)
+
+        if self.config.get("reuse_cached_run", True):
+            cached = find_replayable(runs_dir, company_name, str(trade_date), digest)
+            if cached:
+                final = cached["final"]
+                final_state = dict(final.get("reports", {}))
+                final_state.update({
+                    "company_of_interest": company_name,
+                    "trade_date": str(trade_date),
+                    "final_trade_decision": final.get("decision_text", ""),
+                })
+                self.curr_state = final_state
+                self._last_signal_dict = final.get("signal", {})
+                self._last_was_replay = True
+                return final_state, self._last_signal_dict
+
+        recorder = RunRecorder(
+            root=runs_dir, ticker=company_name, date=str(trade_date),
+            digest=digest, enabled=self.config.get("record_runs", True),
         )
-        args = self.propagator.get_graph_args()
+        set_recorder(recorder)
 
-        if self.debug:
-            # Debug mode with tracing
-            trace = []
-            for chunk in self.graph.stream(init_agent_state, **args):
-                if len(chunk["messages"]) == 0:
-                    pass
-                else:
-                    chunk["messages"][-1].pretty_print()
-                    trace.append(chunk)
+        try:
+            # Initialize state
+            init_agent_state = self.propagator.create_initial_state(
+                company_name, trade_date
+            )
+            args = self.propagator.get_graph_args()
 
-            final_state = trace[-1]
-        else:
-            # Standard mode without tracing
-            final_state = self.graph.invoke(init_agent_state, **args)
+            if self.debug:
+                # Debug mode with tracing
+                trace = []
+                for chunk in self.graph.stream(init_agent_state, **args):
+                    if len(chunk["messages"]) == 0:
+                        pass
+                    else:
+                        chunk["messages"][-1].pretty_print()
+                        trace.append(chunk)
 
-        # Store current state for reflection
-        self.curr_state = final_state
+                final_state = trace[-1]
+            else:
+                # Standard mode without tracing
+                final_state = self.graph.invoke(init_agent_state, **args)
 
-        # Log state
-        self._log_state(trade_date, final_state)
+            # Store current state for reflection
+            self.curr_state = final_state
 
-        # Return decision and processed signal
-        signal_dict = self.process_signal(final_state["final_trade_decision"])
-        self._last_signal_dict = signal_dict  # cache for reflect_and_remember
-        return final_state, signal_dict
+            # Persist the four analyst reports symmetrically (no-op in single mode).
+            self._persist_daily_reports(company_name, final_state)
+
+            # Log state
+            self._log_state(trade_date, final_state)
+
+            # Return decision and processed signal
+            signal_dict = self.process_signal(final_state["final_trade_decision"])
+            self._last_signal_dict = signal_dict  # cache for reflect_and_remember
+
+            recorder.finish(
+                signal=signal_dict,
+                reports={
+                    k: final_state.get(k, "")
+                    for k in (
+                        "market_report", "sentiment_report",
+                        "news_report", "fundamentals_report",
+                        "investment_plan", "trader_investment_plan",
+                    )
+                },
+                decision_text=final_state.get("final_trade_decision", ""),
+            )
+            return final_state, signal_dict
+        except Exception as exc:
+            recorder.fail(str(exc))
+            raise
+        finally:
+            set_recorder(None)
+
+    def _persist_daily_reports(self, ticker, final_state):
+        """Central write point for all analyst reports.
+
+        Storing here (instead of inside each analyst node) guarantees that
+        the four reports are persisted symmetrically and exactly once per
+        propagate() call — analyst nodes can be re-entered by the ReAct loop.
+        """
+        writers = [
+            ("market_report",       self.memory_store.store_market_summary),
+            ("sentiment_report",    self.memory_store.store_sentiment_summary),
+            ("news_report",         self.memory_store.store_news_summary),
+            ("fundamentals_report", self.memory_store.store_fundamentals),
+        ]
+        for field, write in writers:
+            content = (final_state.get(field) or "").strip()
+            if content:
+                write(ticker, content)
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file (skipped in backtest mode)."""
@@ -350,6 +438,66 @@ class TradingAgentsGraph:
             confidence=signal_dict.get("confidence", 0.70),
             actual_return=float(returns_losses),
         )
+
+    def run_backtest(self, ticker: str, start_date: str, end_date: str):
+        """Run a multi-day backtest for a single ticker.
+
+        Iterates over trading days in [start_date, end_date], calling
+        propagate() + reflect_and_remember() for each day.
+
+        Returns (results, all_results) where results is a list of dicts
+        with keys: ticker, date, signal, confidence, horizon, actual_return.
+        """
+        import pandas as pd
+        import yfinance as yf
+        from tradingagents.dataflows.backtest_cache import get_backtest_cache
+
+        # Determine trading days
+        try:
+            hist = yf.download(
+                ticker, start=start_date, end=end_date,
+                auto_adjust=True, progress=False,
+            )
+            trading_days = [d.strftime("%Y-%m-%d") for d in hist.index]
+        except Exception:
+            trading_days = pd.bdate_range(start_date, end_date).strftime("%Y-%m-%d").tolist()
+
+        if not trading_days:
+            return [], []
+
+        cache = get_backtest_cache()
+
+        results: list[dict] = []
+        for trade_date in trading_days:
+            try:
+                _final_state, signal_dict = self.propagate(ticker, trade_date)
+                actual_return = cache.get_next_day_return(trade_date)
+                # A replayed day already wrote its reflections in the original
+                # run; re-reflecting would only burn LLM calls on identical
+                # upserts.
+                if not self._last_was_replay:
+                    self.reflect_and_remember(actual_return)
+
+                results.append({
+                    "ticker":        ticker,
+                    "date":          trade_date,
+                    "signal":        signal_dict.get("signal", "HOLD"),
+                    "confidence":    signal_dict.get("confidence", 0.70),
+                    "horizon":       signal_dict.get("horizon", "1-5d"),
+                    "actual_return": actual_return,
+                })
+            except Exception as e:
+                results.append({
+                    "ticker":        ticker,
+                    "date":          trade_date,
+                    "signal":        "ERROR",
+                    "confidence":    0.0,
+                    "horizon":       "",
+                    "actual_return": 0.0,
+                })
+
+        cache.clear()
+        return results, results
 
     def process_signal(self, full_signal):
         """Process a signal to extract the core decision."""
