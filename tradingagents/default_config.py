@@ -57,8 +57,40 @@ DEFAULT_CONFIG = {
         "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
         "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
         "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        # News default is alpha_vantage: yfinance news has NO date parameters
+        # (always returns the latest ~20 articles), which silently breaks any
+        # historical-date analysis. Requires ALPHA_VANTAGE_API_KEY.
+        "news_data": "alpha_vantage",        # Options: alpha_vantage, yfinance
     },
+    # Minimum cosine similarity for memory retrieval hits (see TradingMemoryStore).
+    "memory_min_similarity": 0.45,
+    # Social subject filtering: zero-shot NLI check that a post is primarily
+    # about the target ticker (runs after the free rule-based prefilter).
+    "social_nli_filter": True,
+    "social_nli_model": "typeform/distilbert-base-uncased-mnli",
+    # Raw social post archival — OFF locally (no bulk storage); flip to True
+    # on a cloud deployment to start accumulating a historical corpus.
+    "archive_raw_social": False,
+    "raw_social_archive_dir": "./data/raw_social",
+    # Run recording & replay. Every run writes its intermediate steps to
+    # runs/{ticker}/{date}.json (agent monitor + debugging). When a completed
+    # record with the same config digest exists, reuse_cached_run returns it
+    # without re-invoking the LLM pipeline (a "Fresh Run" sets this False).
+    "record_runs": True,
+    "reuse_cached_run": True,
+    "runs_dir": os.getenv("TRADINGAGENTS_RUNS_DIR", "./runs"),
+    # 10-K RAG (SEC EDGAR; free, no key). The index is durable reference data
+    # kept SEPARATE from the experiential memory store — see docs.
+    "filings_index_dir": "./data/filings_index",
+    # A filing stays retrievable for this long after filed_date (3 years).
+    "filing_validity_days": 1095,
+    # Earnings call transcripts stay retrievable for one year (guidance is
+    # superseded quarterly; YoY narrative comparison keeps value).
+    "transcript_validity_days": 365,
+    # API Ninjas key for earnings call transcripts (free tier; env fallback).
+    "api_ninjas_key": os.getenv("API_NINJAS_KEY"),
+    # SEC requires a User-Agent identifying the requester.
+    "edgar_user_agent": os.getenv("EDGAR_USER_AGENT"),
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default

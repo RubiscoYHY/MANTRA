@@ -35,43 +35,37 @@ FinBERT weights (~440 MB) are downloaded automatically on first run and cached a
 
 ### Environment Variables
 
-There are two ways to supply API keys. Use whichever fits your workflow.
-
-**Option 1 — `.env` file (recommended for development)**
-
-Copy `.env.example` to `.env` and fill in the keys for your chosen providers. MANTRA loads this file automatically at startup via `python-dotenv`.
+API keys live in a local `.env` file. Copy the template and fill in the keys
+for the providers you use — every entry point (`main.py`, `mantra` CLI,
+`mantragui`) loads it automatically at startup via `python-dotenv`:
 
 ```bash
 cp .env.example .env
 ```
 
 ```bash
+# LLM providers (set the ones you use)
 ANTHROPIC_API_KEY=sk-ant-...    # Claude (recommended for manager layer)
 GOOGLE_API_KEY=AIza...          # Gemini
 OPENAI_API_KEY=sk-...           # OpenAI
 HF_TOKEN=hf_...                 # HuggingFace Inference API
 XAI_API_KEY=...                 # xAI (Grok)
 OPENROUTER_API_KEY=...          # OpenRouter
-ALPHA_VANTAGE_API_KEY=...       # Market data
+
+# Data vendors
+ALPHA_VANTAGE_API_KEY=...       # News (default vendor; free key, 25 req/day)
+API_NINJAS_KEY=...              # Earnings call transcripts (free key)
+EDGAR_USER_AGENT=...            # Optional: "Your Name you@example.com" for SEC
 ```
 
-**Option 2 — Shell environment variables (useful for servers or CI)**
+`.env` is gitignored, so keys never end up in commits, shell history, or
+shell profiles. Keep them out of `~/.zshrc` and out of inline
+`export KEY=...` commands — both leak easily (dotfile syncs, screen shares,
+`history`).
 
-Export the keys in your current shell session. These take effect immediately without any file:
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...    # Claude (recommended for manager layer)
-export GOOGLE_API_KEY=AIza...          # Gemini
-export OPENAI_API_KEY=sk-...           # OpenAI
-export HF_TOKEN=hf_...                 # HuggingFace Inference API
-export XAI_API_KEY=...                 # xAI (Grok)
-export OPENROUTER_API_KEY=...          # OpenRouter
-export ALPHA_VANTAGE_API_KEY=...       # Market data
-```
-
-To make these permanent, add the relevant `export` lines to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) and run `source ~/.zshrc` (or the equivalent for your shell).
-
-> **Note:** If both a `.env` file and a shell environment variable are set for the same key, the shell environment variable takes precedence.
+> **Note:** A variable already exported in your shell takes precedence over
+> the `.env` value — useful for one-off overrides on servers or CI, where
+> injecting secrets via the environment is the norm.
 
 You only need keys for the providers you actually use. For fully local inference, Ollama requires no API key.
 
@@ -88,6 +82,20 @@ MANTRA uses a dual-LLM architecture: a **deep-thinking** model for the manager l
 | OpenRouter | `"openrouter"` | `OPENROUTER_API_KEY` |
 | HuggingFace | `"huggingface"` | `HF_TOKEN` |
 | Ollama (local) | `"ollama"` | none |
+
+---
+
+## GUI
+
+```bash
+mantragui
+```
+
+This launches a Flask-based web dashboard at `http://127.0.0.1:5720` and opens your browser automatically. The GUI provides:
+
+- **Configuration form** — select run mode (single-day / backtest), ticker(s), date range, analyst team, research depth, and LLM providers/models.
+- **Live dashboard** — real-time agent pipeline status, activity log, memory stats, and token usage via Server-Sent Events.
+- **Results view** — final trading decision with confidence, full analysis report, and backtest charts.
 
 ---
 

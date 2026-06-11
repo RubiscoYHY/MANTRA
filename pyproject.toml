@@ -3,24 +3,20 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tradingagents"
-version = "0.2.3"
-description = "TradingAgents: Multi-Agents LLM Financial Trading Framework"
+name = "mantra"
+version = "0.3.0"
+description = "MANTRA: Multi-Agent LLM Financial Analysis Framework (TradingAgents fork)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "langchain-core>=0.3.81",
-    "backtrader>=1.9.78.123",
     "langchain-anthropic>=0.3.15",
     "langchain-experimental>=0.3.4",
     "langchain-google-genai>=4.0.0",
     "langchain-openai>=0.3.23",
     "langgraph>=0.4.8",
     "pandas>=2.3.0",
-    "parsel>=1.10.0",
-    "pytz>=2025.2",
     "questionary>=2.1.0",
-    "rank-bm25>=0.2.2",
     "chromadb>=0.6.0",
     "sentence-transformers>=3.0.0",
     "transformers>=4.40.0",
@@ -30,17 +26,20 @@ dependencies = [
     "typer>=0.21.0",
     "setuptools>=80.9.0",
     "stockstats>=0.6.5",
-    "tqdm>=4.67.1",
     "typing-extensions>=4.14.0",
     "yfinance>=0.2.63",
     "matplotlib>=3.7.0",
+    "flask>=3.1.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
 mantra = "cli.main:app"
+mantragui = "gui.app:main"
 
 [tool.setuptools.packages.find]
-include = ["tradingagents*", "cli*"]
+include = ["tradingagents*", "cli*", "gui*"]
 
 [tool.setuptools.package-data]
 cli = ["static/*"]
+gui = ["templates/*", "static/*"]

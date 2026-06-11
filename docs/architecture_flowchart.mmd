@@ -1,0 +1,103 @@
+%%{init: {
+  "theme": "dark",
+  "themeVariables": {
+    "primaryColor":       "#1a1a2e",
+    "primaryBorderColor": "#88cfff",
+    "primaryTextColor":   "#e0e0e0",
+    "lineColor":          "#5a7a9a",
+    "fontSize":           "14px"
+  }
+}}%%
+
+flowchart LR
+
+  %% ───────────── Analyst Layer ─────────────
+  subgraph ANALYSTS["📊 Analyst Layer · Parallel"]
+    direction TB
+    A1["Market Analyst\n(Technical Indicators)"]
+    A2["Fundamentals Analyst\n(Financial Statements)"]
+    A3["News Analyst\n(Macro & Company)"]
+    A4["Social Media Analyst\n(FinBERT Sentiment)"]
+  end
+
+  %% ───────────── Debate Layer ─────────────
+  subgraph DEBATE["⚔️ Investment Debate"]
+    direction TB
+    B["Bull Researcher"]
+    C["Bear Researcher"]
+    J[["⭐ Judge\nConsistency · Cross-exam\nLogical Validity"]]
+
+    B --> J
+    C --> J
+    J -. "directive" .-> B
+    J -. "directive" .-> C
+  end
+
+  %% ───────────── Research Manager ─────────────
+  RM[["⭐ Research Manager\nSynthesize Debate\nInvestment Recommendation"]]
+
+  %% ───────────── Trader ─────────────
+  T["Trader\nConcrete Trading Proposal"]
+
+  %% ───────────── Risk Layer ─────────────
+  subgraph RISK["🛡️ Risk Debate · Sequential"]
+    direction TB
+    RA["Aggressive Analyst\n(Champion Upside)"]
+    RC["Conservative Analyst\n(Protect Assets)"]
+    RN["Neutral Analyst\n(Balanced View)"]
+
+    RA --> RC --> RN
+    RN -. "next round" .-> RA
+  end
+
+  %% ───────────── Portfolio Manager ─────────────
+  PM[["⭐ Portfolio Manager\nFinal Decision\nSignal · Confidence · Horizon"]]
+
+  %% ───────────── Reflection & Memory ─────────────
+  RF["Reflector\nPost-trade Analysis"]
+  M[("Memory\nChromaDB + SQLite KG")]
+
+  %% ═══════════ Main Flow ═══════════
+
+  ANALYSTS ==> DEBATE
+  J ==>|"debate settled"| RM
+  RM ==> T
+  T ==> RISK
+  RISK ==> PM
+  PM ==> RF
+
+  %% ═══════════ Memory Writes ═══════════
+
+  A2 -->|write| M
+  A3 -->|write| M
+  A4 -->|write| M
+  A1 -->|write| M
+  RF ==>|"write reflections\n(valid_from = T+1)"| M
+
+  %% ═══════════ Memory Reads ═══════════
+
+  M -. "read\n(valid_from ≤ T)" .-> DEBATE
+  M -. read .-> RM
+  M -. read .-> T
+  M -. read .-> RISK
+  M -. read .-> PM
+
+  %% ═══════════ Supplementary Links ═══════════
+
+  RM -. "recommendation" .-> PM
+
+  %% ═══════════ Styles ═══════════
+
+  classDef core      fill:#2b0b45,stroke:#ff4df8,stroke-width:3px,color:#fff
+  classDef normal    fill:#0b1f3a,stroke:#88cfff,stroke-width:1.5px,color:#fff
+  classDef memory    fill:#3a2a00,stroke:#ffd84d,stroke-width:3px,color:#fff
+  classDef risk      fill:#2a2030,stroke:#d5b8ff,stroke-width:1.5px,color:#fff
+  classDef analyst   fill:#0b2a1f,stroke:#66d9a0,stroke-width:1.5px,color:#fff
+  classDef reflector fill:#1a1a2e,stroke:#ff9966,stroke-width:1.5px,color:#fff
+
+  class J,RM,PM core
+  class M memory
+  class RA,RC,RN risk
+  class A1,A2,A3,A4 analyst
+  class B,C,T normal
+  class RF reflector

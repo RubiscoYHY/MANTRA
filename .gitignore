@@ -218,19 +218,18 @@ __marimo__/
 # Cache
 **/data_cache/
 
-# Third-party cloned repositories (tracked via third_party/README.md, not committed)
-third_party/mempalace/
-
 # Memory palace — persistent cross-run memory (ChromaDB + SQLite KG).
 # Not committed: accumulated locally across backtest runs.
 memory/
 
-# Project-specific exclusions
+# Run outputs and local-only materials
 notes/
 results/
 reports/
-third_party/
+runs/
+data/
+experiments/
+*.rtf
 
 # macOS metadata
-.DS_Store
 **/.DS_Store
