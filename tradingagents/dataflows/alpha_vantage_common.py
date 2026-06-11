@@ -14,8 +14,14 @@ def get_api_key() -> str:
         raise ValueError("ALPHA_VANTAGE_API_KEY environment variable is not set.")
     return api_key
 
-def format_datetime_for_api(date_input) -> str:
-    """Convert various date formats to YYYYMMDDTHHMM format required by Alpha Vantage API."""
+def format_datetime_for_api(date_input, is_end: bool = False) -> str:
+    """Convert various date formats to YYYYMMDDTHHMM format required by Alpha Vantage API.
+
+    Args:
+        is_end: Set True when the date is the END of a range. A bare date then
+            maps to T2359 instead of T0000 — otherwise every article published
+            ON the end date is excluded by the API.
+    """
     if isinstance(date_input, str):
         # If already in correct format, return as-is
         if len(date_input) == 13 and 'T' in date_input:
@@ -23,7 +29,7 @@ def format_datetime_for_api(date_input) -> str:
         # Try to parse common date formats
         try:
             dt = datetime.strptime(date_input, "%Y-%m-%d")
-            return dt.strftime("%Y%m%dT0000")
+            return dt.strftime("%Y%m%dT2359" if is_end else "%Y%m%dT0000")
         except ValueError:
             try:
                 dt = datetime.strptime(date_input, "%Y-%m-%d %H:%M")

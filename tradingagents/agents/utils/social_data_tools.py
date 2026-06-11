@@ -27,12 +27,16 @@ If transformers is not installed, finbert_aggregate() falls back to a plain
 formatted post listing so the analyst can still run without crashing.
 """
 
+import logging
+import re
 import time
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Optional
 from langchain_core.tools import tool
+
+logger = logging.getLogger(__name__)
 
 try:
     from transformers import pipeline as _hf_pipeline
@@ -100,7 +104,7 @@ def _fetch_stocktwits_raw(ticker: str, max_pages: int = 10) -> list[dict]:
     Each page returns up to 30 messages (StockTwits API hard limit).
     """
     base_url = f"https://api.stocktwits.com/api/2/streams/symbol/{ticker}.json"
-    cutoff = datetime.utcnow() - timedelta(days=_SOCIAL_RECENCY_DAYS)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_SOCIAL_RECENCY_DAYS)
 
     posts: list[dict] = []
     params: dict = {"limit": 30}
@@ -137,7 +141,9 @@ def _fetch_stocktwits_raw(ticker: str, max_pages: int = 10) -> list[dict]:
                 continue
             ts_str = msg.get("created_at", "")
             try:
-                post_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                post_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                if post_dt.tzinfo is None:
+                    post_dt = post_dt.replace(tzinfo=timezone.utc)
             except (ValueError, AttributeError):
                 post_dt = None
 
@@ -220,46 +226,220 @@ def _fetch_reddit_raw(ticker: str, limit: int = 15) -> list[dict]:
     return posts
 
 
-def _filter_recent_posts(posts: list[dict], max_age_days: int = _SOCIAL_RECENCY_DAYS) -> list[dict]:
+def _parse_post_dt(ts) -> Optional[datetime]:
+    """Parse a post timestamp (Unix epoch float or ISO-8601 string) to aware UTC."""
+    if not ts:
+        return None
+    try:
+        if isinstance(ts, (int, float)):
+            return datetime.fromtimestamp(ts, tz=timezone.utc)
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, OSError, OverflowError):
+        return None
+
+
+def _filter_recent_posts(
+    posts: list[dict],
+    max_age_days: int = _SOCIAL_RECENCY_DAYS,
+    trade_date: Optional[str] = None,
+) -> list[dict]:
     """
-    Drop posts outside the recency window.
-    Reddit timestamps are Unix epoch floats; StockTwits are ISO-8601 strings.
-    Posts with missing or unparseable timestamps are kept (benefit of the doubt).
+    Keep posts inside the window [reference - max_age_days, reference].
+
+    Args:
+        trade_date: ISO date of the analysis day. When given, it is the
+            reference point — posts published AFTER it are future data and are
+            dropped (look-ahead guard), and posts with unparseable timestamps
+            are dropped too (causality cannot be verified). When None, the
+            reference is "now" and unparseable timestamps get the benefit of
+            the doubt.
     """
-    cutoff = datetime.utcnow() - timedelta(days=max_age_days)
+    if trade_date:
+        # End of the trade day, UTC.
+        reference = datetime.fromisoformat(trade_date).replace(
+            tzinfo=timezone.utc
+        ) + timedelta(days=1)
+        keep_unparseable = False
+    else:
+        reference = datetime.now(timezone.utc)
+        keep_unparseable = True
+    cutoff = reference - timedelta(days=max_age_days)
+
     kept = []
     for p in posts:
-        ts = p.get("timestamp", "")
-        if not ts:
-            kept.append(p)
-            continue
-        try:
-            if isinstance(ts, (int, float)):
-                post_dt = datetime.utcfromtimestamp(ts)
-            else:
-                post_dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).replace(tzinfo=None)
-            if post_dt >= cutoff:
+        post_dt = _parse_post_dt(p.get("timestamp", ""))
+        if post_dt is None:
+            if keep_unparseable:
                 kept.append(p)
-        except (ValueError, OSError, OverflowError):
-            kept.append(p)  # unparseable → keep
+            continue
+        if cutoff <= post_dt <= reference:
+            kept.append(p)
     return kept
 
 
-def get_social_posts_cached(ticker: str) -> list[dict]:
+def social_data_status(trade_date: Optional[str]) -> str:
+    """Return "live" when trade_date is within the fetchable window, else "historical".
+
+    Public StockTwits/Reddit endpoints only expose recent posts; for an
+    analysis date older than the recency window no on-date data can exist.
+    """
+    if not trade_date:
+        return "live"
+    try:
+        td = datetime.fromisoformat(trade_date).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return "live"
+    age = datetime.now(timezone.utc) - td
+    return "live" if age <= timedelta(days=_SOCIAL_RECENCY_DAYS) else "historical"
+
+
+def get_social_posts_cached(ticker: str, trade_date: Optional[str] = None) -> list[dict]:
     """
     Return combined StockTwits + Reddit posts for a ticker, filtered to the
-    last _SOCIAL_RECENCY_DAYS days. Cached per ticker to avoid redundant
-    fetches within one analysis run.
+    recency window ending at trade_date (or now). Cached per (ticker, date)
+    to avoid redundant fetches within one analysis run.
+
+    Backtest behavior: for a historical trade_date the public APIs cannot
+    return on-date posts, so NO network call is made and an empty list is
+    returned — the caller must report social data as missing, not neutral.
     """
-    if ticker not in _posts_cache:
-        raw = _fetch_stocktwits_raw(ticker) + _fetch_reddit_raw(ticker)
-        _posts_cache[ticker] = _filter_recent_posts(raw)
-    return _posts_cache[ticker]
+    key = f"{ticker}|{trade_date or 'live'}"
+    if key not in _posts_cache:
+        if social_data_status(trade_date) == "historical":
+            logger.info(
+                "Social data unavailable for %s on %s (historical date; "
+                "public APIs expose recent posts only)", ticker, trade_date,
+            )
+            _posts_cache[key] = []
+        else:
+            raw = _fetch_stocktwits_raw(ticker) + _fetch_reddit_raw(ticker)
+            from tradingagents.dataflows.archiver import get_archiver
+            get_archiver().archive(
+                raw, source="social",
+                fetched_at=datetime.now(timezone.utc).isoformat(),
+            )
+            _posts_cache[key] = _filter_recent_posts(raw, trade_date=trade_date)
+    return _posts_cache[key]
 
 
 def clear_posts_cache() -> None:
     """Clear the posts cache. Call between analysis runs for fresh data."""
     _posts_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# Subject filtering — drop posts whose primary subject is NOT the ticker
+# ---------------------------------------------------------------------------
+# Keyword search ("q=AAPL") matches any passing mention, and FinBERT only
+# classifies sentiment — it has no notion of WHICH company the sentiment is
+# about. These filters run BEFORE FinBERT so the aggregate distribution is
+# computed over on-target posts only.
+
+# Uppercase tokens that look like tickers but are common slang/abbreviations.
+_TICKER_STOPWORDS = frozenset({
+    "A", "I", "DD", "THE", "CEO", "CFO", "US", "USA", "ETF", "IPO", "AI",
+    "EPS", "PE", "ATH", "YOLO", "FOMO", "IMO", "TLDR", "EDIT", "OP", "WSB",
+    "FED", "SEC", "GDP", "CPI", "EOD", "AH", "PM", "IV", "OTM", "ITM", "LOL",
+    "TA", "PT", "EOY", "RSI", "MACD", "API", "OK", "NOT", "ALL", "BUY",
+    "SELL", "HOLD", "CALL", "PUT", "PUTS", "IT", "ON", "TO", "BE", "OR",
+})
+
+_TICKER_TOKEN_RE = re.compile(r"\$([A-Za-z]{1,5})\b|\b([A-Z]{2,5})\b")
+
+
+def _ticker_mention_counts(text: str) -> dict[str, int]:
+    """Count cashtag/uppercase-token mentions that plausibly refer to tickers."""
+    counts: dict[str, int] = {}
+    for m in _TICKER_TOKEN_RE.finditer(text):
+        cashtag, bare = m.group(1), m.group(2)
+        token = (cashtag or bare).upper()
+        if cashtag is None and token in _TICKER_STOPWORDS:
+            continue
+        counts[token] = counts.get(token, 0) + 1
+    return counts
+
+
+def subject_prefilter(posts: list[dict], ticker: str) -> list[dict]:
+    """
+    Rule-based primary-subject filter (zero cost, runs before FinBERT).
+
+    A post passes if ANY of:
+      1. it contains the exact cashtag ($TICKER);
+      2. the ticker appears in the post title;
+      3. the ticker is the most-mentioned ticker-like token in the text.
+    """
+    target = ticker.upper()
+    kept = []
+    for p in posts:
+        text = p.get("text", "") or ""
+        title = p.get("title", "") or ""
+
+        if re.search(rf"\${target}\b", text, flags=re.IGNORECASE) or \
+           re.search(rf"\${target}\b", title, flags=re.IGNORECASE):
+            kept.append(p)
+            continue
+
+        if re.search(rf"\b{target}\b", title, flags=re.IGNORECASE):
+            kept.append(p)
+            continue
+
+        counts = _ticker_mention_counts(text)
+        own = counts.pop(target, 0)
+        if own > 0 and own >= max(counts.values(), default=0):
+            kept.append(p)
+    return kept
+
+
+@lru_cache(maxsize=1)
+def _get_nli_pipeline(model_name: str):
+    """Lazy-load the zero-shot NLI pipeline. Cached after first call."""
+    return _hf_pipeline(
+        "zero-shot-classification",
+        model=model_name,
+        device=_detect_device(),
+    )
+
+
+def nli_subject_filter(
+    posts: list[dict],
+    ticker: str,
+    threshold: float = 0.6,
+) -> list[dict]:
+    """
+    Second-stage subject filter: zero-shot NLI entailment check that the post
+    is primarily about the target ticker. Config-gated via
+    ``social_nli_filter`` (model name in ``social_nli_model``).
+
+    Falls back to returning posts unchanged when transformers is missing or
+    the model fails — the rule prefilter has already run at that point.
+    """
+    from tradingagents.dataflows.config import get_config
+    cfg = get_config()
+    if not cfg.get("social_nli_filter", True) or not posts or not _FINBERT_AVAILABLE:
+        return posts
+
+    model_name = cfg.get("social_nli_model", "typeform/distilbert-base-uncased-mnli")
+    hypothesis_label = f"about {ticker.upper()} stock"
+    try:
+        pipe = _get_nli_pipeline(model_name)
+        texts = [p.get("text", "")[:_FINBERT_TEXT_LIMIT] for p in posts]
+        results = pipe(
+            texts,
+            candidate_labels=[hypothesis_label, "about a different company or topic"],
+            batch_size=16,
+        )
+        if isinstance(results, dict):
+            results = [results]
+        kept = []
+        for post, res in zip(posts, results):
+            scores = dict(zip(res["labels"], res["scores"]))
+            if scores.get(hypothesis_label, 0.0) >= threshold:
+                kept.append(post)
+        return kept
+    except Exception as exc:
+        logger.warning("NLI subject filter failed (%s); passing posts through", exc)
+        return posts
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +506,7 @@ def finbert_aggregate(
     posts: list[dict],
     min_neutral_confidence: float = 0.65,
     top_n: int = 5,
+    total_fetched: Optional[int] = None,
 ) -> str:
     """
     Run FinBERT on a list of post dicts and return a compact structured summary.
@@ -336,18 +517,27 @@ def finbert_aggregate(
     Falls back to a plain post listing if transformers is not installed.
 
     Args:
-        posts: List of post dicts from _fetch_stocktwits_raw / _fetch_reddit_raw.
+        posts: List of post dicts (already subject-filtered).
         min_neutral_confidence: Neutral posts below this confidence are dropped
                                 as low-signal noise.
         top_n: Number of top posts to surface per sentiment class.
+        total_fetched: Post count BEFORE subject filtering. When provided, the
+            summary reports both numbers so the analyst LLM can judge sample
+            size and noise level.
     """
     if not posts:
+        if total_fetched:
+            return (
+                f"All {total_fetched} fetched social media posts were filtered "
+                f"out as off-target (their primary subject was a different "
+                f"company or topic). No on-target social sentiment is available."
+            )
         return "No social media posts available for this ticker."
 
     _notify_finbert_status("in_progress")
 
     try:
-        return _finbert_aggregate_inner(posts, min_neutral_confidence, top_n)
+        return _finbert_aggregate_inner(posts, min_neutral_confidence, top_n, total_fetched)
     finally:
         _notify_finbert_status("completed")
 
@@ -356,6 +546,7 @@ def _finbert_aggregate_inner(
     posts: list[dict],
     min_neutral_confidence: float,
     top_n: int,
+    total_fetched: Optional[int] = None,
 ) -> str:
     if not _FINBERT_AVAILABLE:
         # Graceful fallback: plain listing, no FinBERT
@@ -404,12 +595,18 @@ def _finbert_aggregate_inner(
     bearish.sort(key=_rank, reverse=True)
 
     total = len(filtered)
+    sample_note = (
+        f"Posts fetched: {total_fetched}, on-target after subject filtering: "
+        f"{len(posts)}, scored: {total}"
+        if total_fetched is not None
+        else f"Total posts after filtering: {total}"
+    )
     lines = [
         "=== Social Media Sentiment (FinBERT) ===",
         f"Distribution — Bullish: {len(bullish)/total:.0%} ({len(bullish)}), "
         f"Bearish: {len(bearish)/total:.0%} ({len(bearish)}), "
         f"Neutral: {len(neutral)/total:.0%} ({len(neutral)}) "
-        f"| Total posts after filtering: {total}\n",
+        f"| {sample_note}\n",
     ]
 
     if bullish:

@@ -1,7 +1,7 @@
 """yfinance-based news data fetching functions."""
 
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 
 from .stockstats_utils import yf_retry
@@ -77,9 +77,13 @@ def get_news_yfinance(
         if not news:
             return f"No news found for {ticker}"
 
-        # Parse date range for filtering
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        # Parse date range for filtering. Bounds are interpreted as UTC days:
+        # [start 00:00, end_date 24:00) — half-open so nothing from the day
+        # AFTER end_date leaks in.
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        end_excl = datetime.strptime(end_date, "%Y-%m-%d").replace(
+            tzinfo=timezone.utc
+        ) + relativedelta(days=1)
 
         news_str = ""
         filtered_count = 0
@@ -89,8 +93,9 @@ def get_news_yfinance(
 
             # Filter by date if publish time is available
             if data["pub_date"]:
-                pub_date_naive = data["pub_date"].replace(tzinfo=None)
-                if not (start_dt <= pub_date_naive <= end_dt + relativedelta(days=1)):
+                pub = data["pub_date"]
+                pub_utc = pub.astimezone(timezone.utc) if pub.tzinfo else pub.replace(tzinfo=timezone.utc)
+                if not (start_dt <= pub_utc < end_excl):
                     continue
 
             news_str += f"### {data['title']} (source: {data['publisher']})\n"
@@ -181,10 +186,13 @@ def get_global_news_yfinance(
             # Handle both flat and nested structures
             if "content" in article:
                 data = _extract_article_data(article)
-                # Skip articles published after curr_date (look-ahead guard)
+                # Skip articles published after curr_date (look-ahead guard).
+                # Half-open bound: anything from the day after curr_date is out.
                 if data.get("pub_date"):
-                    pub_naive = data["pub_date"].replace(tzinfo=None) if hasattr(data["pub_date"], "replace") else data["pub_date"]
-                    if pub_naive > curr_dt + relativedelta(days=1):
+                    pub = data["pub_date"]
+                    pub_utc = pub.astimezone(timezone.utc) if pub.tzinfo else pub.replace(tzinfo=timezone.utc)
+                    curr_excl = curr_dt.replace(tzinfo=timezone.utc) + relativedelta(days=1)
+                    if pub_utc >= curr_excl:
                         continue
                 title = data["title"]
                 publisher = data["publisher"]

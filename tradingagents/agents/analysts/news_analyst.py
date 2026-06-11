@@ -20,6 +20,17 @@ def create_news_analyst(llm):
 
         system_message = (
             "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            + f"\n\nDATE DISCIPLINE — follow exactly:\n"
+            f"1. The analysis date is {current_date}. Call get_news with "
+            f"end_date={current_date} and start_date exactly 7 days earlier; "
+            f"call get_global_news with curr_date={current_date}. Do NOT "
+            f"invent other dates.\n"
+            f"2. Treat the publication dates in tool results as authoritative. "
+            f"If a tool returns articles outside the requested window or "
+            f"returns nothing, state that explicitly in your report instead "
+            f"of substituting undated knowledge.\n"
+            f"3. Never use information you believe was published after "
+            f"{current_date}."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()
         )

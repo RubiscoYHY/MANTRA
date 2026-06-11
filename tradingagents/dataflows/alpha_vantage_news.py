@@ -22,7 +22,7 @@ def get_news(ticker, start_date, end_date) -> dict[str, str] | str:
     params = {
         "tickers": ticker,
         "time_from": format_datetime_for_api(start_date),
-        "time_to": format_datetime_for_api(end_date),
+        "time_to": format_datetime_for_api(end_date, is_end=True),
     }
 
     return _make_api_request("NEWS_SENTIMENT", params)
@@ -56,7 +56,7 @@ def get_global_news(curr_date, look_back_days: int = 7, limit: int = 50) -> dict
     params = {
         "topics": "financial_markets,economy_macro,economy_monetary",
         "time_from": format_datetime_for_api(start_date),
-        "time_to": format_datetime_for_api(curr_date),
+        "time_to": format_datetime_for_api(curr_date, is_end=True),
         "limit": str(limit),
     }
 

@@ -46,20 +46,39 @@ class BacktestDataCache:
         return self._active
 
     def initialize(self, ticker: str, start_date: str, end_date: str) -> None:
-        """Pre-fetch all data needed for one ticker's backtest run."""
+        """Pre-fetch the data needed for one ticker's backtest run.
+
+        Only the vendors actually configured in data_vendors are prefetched —
+        fetching both sources burned API quota on data that was never read.
+        """
+        if self._active:
+            logger.warning(
+                "Backtest cache re-initialized without clear() (%s -> %s)",
+                self._ticker, ticker.upper(),
+            )
+            self.clear()
         self._active = True
         self._ticker = ticker.upper()
         self._start_date = start_date
         self._end_date = end_date
         self._store = {}
 
+        from .config import get_config
+        vendors = get_config().get("data_vendors", {})
+        news_vendor = vendors.get("news_data", "alpha_vantage")
+        fund_vendor = vendors.get("fundamental_data", "yfinance")
+
         self._prefetch_next_day_returns()
-        self._prefetch_yf_financials()
-        self._prefetch_yf_news()
-        self._prefetch_yf_global_news()
-        self._prefetch_av_financials()
-        self._prefetch_av_news()
-        self._prefetch_av_global_news()
+        if "yfinance" in fund_vendor:
+            self._prefetch_yf_financials()
+        if "alpha_vantage" in fund_vendor:
+            self._prefetch_av_financials()
+        if "yfinance" in news_vendor:
+            self._prefetch_yf_news()
+            self._prefetch_yf_global_news()
+        if "alpha_vantage" in news_vendor:
+            self._prefetch_av_news()
+            self._prefetch_av_global_news()
 
     def clear(self) -> None:
         """Release all cached data after a ticker's backtest completes."""
@@ -199,7 +218,7 @@ class BacktestDataCache:
             params = {
                 "tickers": self._ticker,
                 "time_from": format_datetime_for_api(self._start_date),
-                "time_to": format_datetime_for_api(self._end_date),
+                "time_to": format_datetime_for_api(self._end_date, is_end=True),
                 "limit": "200",
             }
             self._store["av_news"] = _make_api_request("NEWS_SENTIMENT", params)
@@ -215,7 +234,7 @@ class BacktestDataCache:
             params = {
                 "topics": "financial_markets,economy_macro,economy_monetary",
                 "time_from": format_datetime_for_api(self._start_date),
-                "time_to": format_datetime_for_api(self._end_date),
+                "time_to": format_datetime_for_api(self._end_date, is_end=True),
                 "limit": "200",
             }
             self._store["av_global_news"] = _make_api_request("NEWS_SENTIMENT", params)

@@ -131,6 +131,15 @@ def get_vendor(category: str, method: str = None) -> str:
     # Fall back to category-level configuration
     return config.get("data_vendors", {}).get(category, "default")
 
+# News methods for which yfinance has no historical capability: it returns
+# only the latest ~20 articles regardless of requested dates. Using it on a
+# historical date silently yields empty or wrong-date news.
+_DATE_INCAPABLE_NEWS = {
+    "get_news": "yfinance",
+    "get_global_news": "yfinance",
+}
+
+
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     category = get_category_for_method(method)
@@ -146,6 +155,19 @@ def route_to_vendor(method: str, *args, **kwargs):
     for vendor in all_available_vendors:
         if vendor not in fallback_vendors:
             fallback_vendors.append(vendor)
+
+    # Backtest guard: never serve news from a vendor that cannot honor
+    # historical dates — neither as primary nor via rate-limit fallback.
+    if get_config().get("run_mode") == "backtest":
+        blocked = _DATE_INCAPABLE_NEWS.get(method)
+        if blocked:
+            if primary_vendors == [blocked]:
+                raise RuntimeError(
+                    f"data_vendors routes '{method}' to '{blocked}', which cannot "
+                    f"return historical news. Configure 'news_data': 'alpha_vantage' "
+                    f"(requires ALPHA_VANTAGE_API_KEY) for backtests."
+                )
+            fallback_vendors = [v for v in fallback_vendors if v != blocked]
 
     for vendor in fallback_vendors:
         if vendor not in VENDOR_METHODS[method]:

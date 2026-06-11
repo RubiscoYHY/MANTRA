@@ -7,6 +7,9 @@ from tradingagents.agents.utils.agent_utils import (
 from tradingagents.agents.utils.social_data_tools import (
     get_social_posts_cached,
     finbert_aggregate,
+    nli_subject_filter,
+    social_data_status,
+    subject_prefilter,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -20,19 +23,47 @@ def create_social_media_analyst(llm, memory_store=None):
         # Pre-fetch and aggregate social media data with FinBERT.
         # get_social_posts_cached() is idempotent within one propagate() call —
         # the analyst node may be re-entered multiple times (ReAct loop) but
-        # the network requests are made only once.
-        posts = get_social_posts_cached(ticker)
-        sentiment_summary = finbert_aggregate(posts)
+        # the network requests are made only once. The recency window is
+        # anchored to the trade date, never to "now" (no look-ahead in backtest).
+        from tradingagents.observability import get_recorder
+
+        if social_data_status(current_date) == "historical":
+            sentiment_summary = (
+                f"SOCIAL DATA MISSING for {current_date}: public StockTwits/"
+                f"Reddit APIs only expose recent posts, so no on-date social "
+                f"sentiment exists for this historical analysis date. Treat "
+                f"social sentiment as missing data — do NOT interpret this as "
+                f"neutral sentiment."
+            )
+            get_recorder().metric("social", {
+                "status": "missing_historical",
+                "fetched": 0, "on_target": 0, "snr": None, "sample": None,
+            })
+        else:
+            posts = get_social_posts_cached(ticker, trade_date=current_date)
+            # Two-stage subject filter BEFORE FinBERT: keyword search matches
+            # any passing mention, and FinBERT cannot tell which company the
+            # sentiment is about.
+            on_target = subject_prefilter(posts, ticker)
+            on_target = nli_subject_filter(on_target, ticker)
+            sentiment_summary = finbert_aggregate(
+                on_target, total_fetched=len(posts)
+            )
+            sample = max(on_target, key=lambda p: p.get("score", 0))["text"][:280] \
+                if on_target else None
+            get_recorder().metric("social", {
+                "status": "ok" if on_target else "no_relevant",
+                "fetched": len(posts),
+                "on_target": len(on_target),
+                "snr": round(len(on_target) / len(posts), 3) if posts else None,
+                "sample": sample,
+            })
 
         # Retrieve historical similar sentiment from memory (causal isolation guaranteed internally)
         historical = []
-        sector = []
         if memory_store is not None:
             historical = memory_store.retrieve_similar_sentiment(
                 ticker=ticker, query=sentiment_summary, n_results=3
-            )
-            sector = memory_store.retrieve_sector_sentiment(
-                related_tickers=[], query=sentiment_summary, n_results=2
             )
 
         memory_context = ""
@@ -41,11 +72,6 @@ def create_social_media_analyst(llm, memory_store=None):
             for entry in historical:
                 memory_context += f"- {entry}\n"
             memory_context += "--- End of Historical Sentiment ---"
-        if sector:
-            memory_context += "\n\n--- Sector Peer Sentiment ---\n"
-            for entry in sector:
-                memory_context += f"- {entry}\n"
-            memory_context += "--- End of Sector Sentiment ---"
 
         tools = [get_news]
 
@@ -108,9 +134,9 @@ def create_social_media_analyst(llm, memory_store=None):
         if len(result.tool_calls) == 0:
             report = result.content
 
-        # Store today's sentiment summary into memory for future retrieval
-        if memory_store is not None and report:
-            memory_store.store_sentiment_summary(ticker=ticker, summary=report)
+        # Persistence happens centrally in trading_graph.propagate() after the
+        # full run, so all four reports are stored symmetrically and exactly
+        # once (this node may be re-entered by the ReAct loop).
 
         return {
             "messages": [result],
