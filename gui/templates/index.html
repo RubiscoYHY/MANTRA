@@ -1,0 +1,2550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MANTRA</title>
+<style>
+/* ------------------------------------------------------------------ */
+/* Reset & Variables                                                   */
+/* ------------------------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0C0F0D;
+  --bg-card:     #141A16;
+  --bg-hover:    #1C2420;
+  --bg-input:    #111714;
+  --accent:      #D4BA96;
+  --accent-dim:  #A08A6A;
+  --accent-glow: rgba(212,186,150,.12);
+  --text:        #E5DCCC;
+  --text-dim:    #9E9484;
+  --text-faint:  #6E675C;
+  --border:      #354039;
+  --success:     #6DB082;
+  --error:       #D06464;
+  --warning:     #D0B060;
+  --radius:      8px;
+  --font:        'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scrollbar                                                           */
+/* ------------------------------------------------------------------ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+
+/* ------------------------------------------------------------------ */
+/* Layout                                                              */
+/* ------------------------------------------------------------------ */
+.app { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+/* ------------------------------------------------------------------ */
+/* Header                                                              */
+/* ------------------------------------------------------------------ */
+.header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.header h1 {
+  font-size: 1.8rem;
+  color: var(--accent);
+  letter-spacing: 0.25em;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.header .subtitle {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+.header .pipeline {
+  margin-top: 0.8rem;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+.header .pipeline span { color: var(--accent-dim); }
+
+/* ------------------------------------------------------------------ */
+/* Cards                                                               */
+/* ------------------------------------------------------------------ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.card-title {
+  font-size: 0.8rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.card-title .step-num {
+  background: var(--accent);
+  color: var(--bg);
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ */
+/* Form elements                                                       */
+/* ------------------------------------------------------------------ */
+label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+}
+
+select, input[type="text"], input[type="date"] {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color .2s;
+}
+select:focus, input:focus {
+  border-color: var(--accent-dim);
+}
+select option { background: var(--bg-card); color: var(--text); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+.form-group { margin-bottom: 0.6rem; }
+
+/* Checkboxes */
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+.checkbox-item input[type="checkbox"] {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  background: var(--bg-input);
+  cursor: pointer;
+  position: relative;
+}
+.checkbox-item input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.checkbox-item input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px; top: 1px;
+  width: 4px; height: 7px;
+  border: solid var(--bg); border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.checkbox-item span {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+/* Radio pills */
+.radio-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.radio-pill {
+  cursor: pointer;
+}
+.radio-pill input { display: none; }
+.radio-pill .pill {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  transition: all .2s;
+}
+.radio-pill input:checked + .pill {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+.radio-pill .pill:hover {
+  border-color: var(--accent-dim);
+  color: var(--text);
+}
+
+/* Submit button */
+.btn-start {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 1.5rem;
+  background: linear-gradient(135deg, var(--accent-dim), var(--accent));
+  border: none;
+  border-radius: var(--radius);
+  color: var(--bg);
+  font-family: var(--font);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: opacity .2s, transform .1s;
+}
+.btn-start:hover { opacity: 0.9; }
+.btn-start:active { transform: scale(0.99); }
+.btn-start:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Extra config row (conditionally visible) */
+.extra-config { margin-top: 0.5rem; }
+.hidden { display: none !important; }
+
+/* ------------------------------------------------------------------ */
+/* Dashboard (analysis view)                                           */
+/* ------------------------------------------------------------------ */
+#dashboard { display: none; }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1rem;
+  min-height: 70vh;
+  align-items: start;
+}
+
+/* Left: agent pipeline column. Right: data monitors OR agent monitor. */
+.panel-agents {
+  position: sticky;
+  top: 1rem;
+}
+.right-pane { min-width: 0; }
+.right-pane .metrics-strip { margin-bottom: 1rem; }
+.agent-group-title {
+  font-size: 0.7rem;
+  color: var(--accent-dim);
+  letter-spacing: 0.06em;
+  margin: 0.8rem 0 0.3rem;
+}
+.agent-group-title:first-child { margin-top: 0; }
+
+/* Execution mode badge */
+.exec-mode-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+.exec-mode-badge.parallel {
+  background: rgba(109,176,130,.15);
+  color: var(--success);
+  border: 1px solid rgba(109,176,130,.3);
+}
+.exec-mode-badge.sequential {
+  background: rgba(208,176,96,.15);
+  color: var(--warning);
+  border: 1px solid rgba(208,176,96,.3);
+}
+
+/* Parallel group bracket */
+.parallel-group {
+  border-left: 2px solid rgba(109,176,130,.4);
+  margin-left: 0.3rem;
+  padding-left: 0.5rem;
+  position: relative;
+}
+.parallel-group::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 0;
+  width: 6px;
+  height: 2px;
+  background: rgba(109,176,130,.4);
+}
+.parallel-group::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  bottom: 0;
+  width: 6px;
+  height: 2px;
+  background: rgba(109,176,130,.4);
+}
+
+/* Debate loop container with recycling arrow */
+.debate-loop {
+  border-left: 2px solid rgba(208,176,96,.35);
+  margin-left: 0.3rem;
+  padding-left: 0.5rem;
+  position: relative;
+}
+.debate-loop-arrow {
+  position: absolute;
+  right: -0.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--warning);
+  font-size: 1rem;
+  opacity: 0.6;
+}
+.debate-round-label {
+  font-size: 0.6rem;
+  color: var(--text-faint);
+  padding-left: 1.6rem;
+  padding-top: 0.1rem;
+  font-style: italic;
+}
+
+/* Sequential arrow connector */
+.seq-connector {
+  display: flex;
+  align-items: center;
+  padding: 0.1rem 0 0.1rem 0.55rem;
+  color: var(--text-faint);
+  font-size: 0.6rem;
+}
+
+/* Group connector arrow between groups */
+.group-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0;
+  color: var(--text-faint);
+  font-size: 0.65rem;
+}
+
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.78rem;
+}
+.agent-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-faint);
+  transition: background .3s;
+}
+.agent-dot.pending { background: var(--text-faint); }
+.agent-dot.in_progress { background: var(--warning); animation: pulse 1.2s infinite; }
+.agent-dot.completed { background: var(--success); }
+.agent-name { color: var(--text-dim); }
+.agent-dot.completed + .agent-name { color: var(--text); }
+.agent-dot.in_progress + .agent-name { color: var(--warning); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Database status panel */
+.panel-db {
+}
+.db-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+.db-stat-box {
+  text-align: center;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-input);
+}
+.db-stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.db-stat-label {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 0.15rem;
+}
+.panel-db.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.panel-db.disabled .db-stat-value {
+  color: var(--text-faint);
+}
+.db-disabled-msg {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-align: center;
+  padding: 0.3rem 0;
+  font-style: italic;
+}
+
+/* Messages panel */
+.panel-messages {
+  max-height: 220px;
+  overflow-y: auto;
+}
+.msg-line {
+  font-size: 0.72rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgba(53,64,57,.4);
+}
+.msg-time { color: var(--text-faint); margin-right: 0.4rem; }
+.msg-type { color: var(--accent-dim); margin-right: 0.3rem; }
+.msg-content { color: var(--text-dim); }
+
+/* Report panel */
+.panel-report {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.report-content {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+/* Stats bar */
+.stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+}
+.stat-item span { color: var(--accent-dim); }
+
+/* Complete overlay */
+.decision-banner {
+  text-align: center;
+  padding: 1.2rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  background: var(--accent-glow);
+}
+.decision-signal {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.15em;
+}
+.decision-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+}
+
+.btn-back {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.btn-back:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* Full report modal */
+.report-full {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 60vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* Backtest progress bar */
+.backtest-progress {
+  display: none;
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.backtest-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.backtest-progress-label {
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+.backtest-progress-date {
+  color: var(--accent);
+  font-weight: 600;
+}
+.backtest-progress-counter {
+  color: var(--text-dim);
+}
+.backtest-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.backtest-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* Error */
+.error-box {
+  background: rgba(208,100,100,.1);
+  border: 1px solid var(--error);
+  border-radius: var(--radius);
+  padding: 1rem;
+  color: var(--error);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Clickable agent rows                                                */
+/* ------------------------------------------------------------------ */
+.agent-row.clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .15s;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+}
+.agent-row.clickable:hover { background: var(--bg-hover); }
+.agent-row.clickable.active {
+  background: var(--accent-glow);
+  border-left: 2px solid var(--accent);
+  padding-left: calc(0.3rem - 2px);
+}
+
+/* ------------------------------------------------------------------ */
+/* Metrics strip (overview)                                            */
+/* ------------------------------------------------------------------ */
+.metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+}
+.metric-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.6rem 0.8rem;
+}
+.metric-label {
+  font-size: 0.62rem;
+  color: var(--accent-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+.metric-value {
+  font-size: 0.82rem;
+  color: var(--text);
+  font-weight: 600;
+}
+.metric-sub {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 0.25rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.metric-sub.dim { color: var(--text-faint); font-style: italic; }
+
+/* ------------------------------------------------------------------ */
+/* Agent detail view                                                   */
+/* ------------------------------------------------------------------ */
+.detail-section { margin-bottom: 1.2rem; }
+.detail-section-title {
+  font-size: 0.72rem;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+.detail-empty { color: var(--text-faint); font-style: italic; font-size: 0.78rem; }
+
+.detail-input-row {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.detail-input-key {
+  color: var(--accent-dim);
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+.detail-input-val {
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border);
+}
+
+.llm-turn {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.74rem;
+}
+.llm-turn-head {
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  padding: 0.08rem 0.4rem;
+  margin: 0.2rem 0.2rem 0 0;
+  border-radius: 3px;
+  background: rgba(212,186,150,.12);
+  color: var(--accent);
+  border: 1px solid rgba(212,186,150,.3);
+}
+
+.tool-panel {
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.tool-panel summary {
+  cursor: pointer;
+  padding: 0.45rem 0.6rem;
+  background: var(--bg-input);
+  font-size: 0.74rem;
+  color: var(--text);
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.tool-panel summary::-webkit-details-marker { display: none; }
+.tool-panel summary:hover { background: var(--bg-hover); }
+.tool-panel-name { color: var(--accent); }
+.tool-panel-meta { color: var(--text-faint); font-size: 0.66rem; }
+.tool-panel-body { padding: 0.5rem 0.6rem; }
+.tool-args {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-bottom: 0.4rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-result {
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mem-event {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.73rem;
+}
+.mem-room { color: var(--accent); font-weight: 600; }
+.mem-query { color: var(--text-dim); margin: 0.2rem 0; }
+.mem-hit {
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--border);
+  margin-top: 0.3rem;
+  color: var(--text-dim);
+}
+.mem-sim { color: var(--warning); }
+
+.detail-output {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.6rem;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Replay / cache banner                                               */
+/* ------------------------------------------------------------------ */
+.replay-banner {
+  margin-bottom: 1rem;
+  padding: 0.7rem 1rem;
+  background: rgba(208,176,96,.1);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  color: var(--warning);
+  font-size: 0.78rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Final report — collapsible sections + date selector                */
+/* ------------------------------------------------------------------ */
+.report-day-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.report-day-selector select { width: auto; min-width: 160px; }
+
+.report-section {
+  margin-bottom: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.report-section summary {
+  cursor: pointer;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg-card);
+  font-size: 0.8rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  list-style: none;
+}
+.report-section summary::-webkit-details-marker { display: none; }
+.report-section summary:hover { background: var(--bg-hover); }
+.report-section[open] summary { border-bottom: 1px solid var(--border); }
+.report-section-body {
+  padding: 0.9rem 1rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.detail-header h2 {
+  font-size: 1rem;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+.detail-status-pill {
+  font-size: 0.66rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  margin-left: 0.5rem;
+}
+.detail-status-pill.pending { background: rgba(110,103,92,.2); color: var(--text-faint); }
+.detail-status-pill.in_progress { background: rgba(208,176,96,.15); color: var(--warning); }
+.detail-status-pill.completed { background: rgba(109,176,130,.15); color: var(--success); }
+.detail-status-pill.error { background: rgba(208,100,100,.15); color: var(--error); }
+
+/* Date-fallback note shown when an agent panel falls back to a previous day */
+.detail-date-note {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  margin-bottom: 0.8rem;
+  font-style: italic;
+}
+.detail-date-note.fallback { color: var(--warning); font-style: normal; }
+
+/* Back button pinned to the bottom of the agent monitor */
+.detail-footer {
+  margin-top: 1.2rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+/* ------------------------------------------------------------------ */
+/* Backtest analytics (completion view)                                */
+/* ------------------------------------------------------------------ */
+.backtest-chart {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  display: block;
+}
+.backtest-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-top: 0.5rem;
+}
+.backtest-table th, .backtest-table td {
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+.backtest-table th:first-child, .backtest-table td:first-child {
+  text-align: left;
+  color: var(--text-dim);
+}
+.backtest-table thead th {
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+.backtest-table td.col-strategy { color: var(--text); }
+.backtest-table td.col-bh { color: var(--text-dim); }
+
+/* Interactive backtest controls */
+.bt-ticker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.bt-ticker-row select {
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.5rem;
+  font-family: var(--font);
+  font-size: 0.78rem;
+}
+.bt-params {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.bt-param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.bt-param input {
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.5rem;
+  font-family: var(--font);
+  font-size: 0.85rem;
+}
+.bt-warning {
+  font-size: 0.74rem;
+  color: var(--warn, #d8a657);
+  margin-bottom: 0.6rem;
+}
+#bt-chart { padding: 0.5rem; min-height: 220px; }
+#bt-chart svg { width: 100%; height: auto; display: block; }
+.bt-axis-label { fill: var(--text-dim); font-size: 10px; }
+.bt-grid-line { stroke: var(--border); stroke-width: 1; }
+.bt-line-strat { fill: none; stroke: var(--accent); stroke-width: 2; }
+.bt-line-bh { fill: none; stroke: var(--text-dim); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.bt-legend {
+  display: flex;
+  gap: 1.2rem;
+  margin-top: 0.4rem;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+.bt-legend-item { display: flex; align-items: center; gap: 0.4rem; }
+.bt-swatch { width: 18px; height: 0; border-top-width: 2px; border-top-style: solid; }
+.bt-swatch-strat { border-top-color: var(--accent); }
+.bt-swatch-bh { border-top-color: var(--text-dim); border-top-style: dashed; }
+.bt-save-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.bt-save-btn { width: auto; margin-top: 0; padding: 0.55rem 1.4rem; }
+.bt-save-status { font-size: 0.76rem; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============================================================= -->
+  <!-- HEADER                                                         -->
+  <!-- ============================================================= -->
+  <div class="header">
+    <h1>MANTRA</h1>
+    <div class="subtitle">Memory-Augmented Neural Trading Retrieval Agents</div>
+    <div class="pipeline">
+      <span>Analysts</span> &rarr; <span>Research</span> &rarr; <span>Trader</span> &rarr; <span>Risk</span> &rarr; <span>Portfolio</span>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- CONFIGURATION FORM                                             -->
+  <!-- ============================================================= -->
+  <div id="config-form">
+
+    <!-- Step 0: Run Mode -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">0</span> RUN MODE</div>
+      <div class="radio-group">
+        <label class="radio-pill">
+          <input type="radio" name="run_mode" value="single" checked>
+          <span class="pill">Single Day</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="run_mode" value="backtest_single">
+          <span class="pill">Backtest (Single Stock)</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="run_mode" value="backtest_multi">
+          <span class="pill">Backtest (Multi-Stock)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 1: Ticker -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">1</span> TICKER</div>
+      <div class="form-group">
+        <label id="ticker-label">Ticker symbol (e.g. SPY, 0700.HK, 7203.T)</label>
+        <input type="text" id="ticker" value="SPY" placeholder="SPY">
+      </div>
+    </div>
+
+    <!-- Step 2: Date -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">2</span> DATE</div>
+      <div class="form-row" id="date-single">
+        <div class="form-group">
+          <label>Analysis Date</label>
+          <input type="text" id="analysis-date" placeholder="YYYY-MM-DD">
+        </div>
+      </div>
+      <div class="form-row hidden" id="date-range">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="text" id="start-date" placeholder="YYYY-MM-DD">
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="text" id="end-date" placeholder="YYYY-MM-DD">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Language -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">3</span> OUTPUT LANGUAGE</div>
+      <div class="form-group">
+        <select id="language">
+          <option value="English">English</option>
+          <option value="Chinese">Chinese</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option>
+          <option value="Spanish">Spanish</option>
+          <option value="French">French</option>
+          <option value="German">German</option>
+          <option value="Portuguese">Portuguese</option>
+          <option value="Hindi">Hindi</option>
+          <option value="Arabic">Arabic</option>
+          <option value="Russian">Russian</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Step 4: Analysts -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">4</span> ANALYST TEAM</div>
+      <div class="checkbox-group">
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="market" checked>
+          <span>Market</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="social">
+          <span>Social</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="news" checked>
+          <span>News</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="analyst" value="fundamentals" checked>
+          <span>Fundamentals</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 5: Research Depth -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">5</span> RESEARCH DEPTH</div>
+      <div class="radio-group">
+        <label class="radio-pill">
+          <input type="radio" name="depth" value="1" checked>
+          <span class="pill">Shallow</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="depth" value="3">
+          <span class="pill">Medium</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="depth" value="5">
+          <span class="pill">Deep</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 6: Analyst LLM -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">6</span> ANALYST LLM (Quick-Thinking)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Provider</label>
+          <select id="analyst-provider" data-tier="quick"></select>
+        </div>
+        <div class="form-group">
+          <label>Model</label>
+          <select id="analyst-model"></select>
+        </div>
+      </div>
+      <div id="analyst-extra" class="extra-config"></div>
+    </div>
+
+    <!-- Step 7: Manager LLM -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">7</span> MANAGER LLM (Deep-Thinking)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Provider</label>
+          <select id="manager-provider" data-tier="deep"></select>
+        </div>
+        <div class="form-group">
+          <label>Model</label>
+          <select id="manager-model"></select>
+        </div>
+      </div>
+      <div id="manager-extra" class="extra-config"></div>
+    </div>
+
+    <!-- Cache / replay control -->
+    <div class="card">
+      <div class="card-title"><span class="step-num">8</span> EXECUTION</div>
+      <label class="checkbox-item" style="margin-bottom:0.5rem;">
+        <input type="checkbox" id="fresh-run">
+        <span>Fresh run (ignore cached result)</span>
+      </label>
+      <label class="checkbox-item" style="margin-bottom:0;">
+        <input type="checkbox" id="save-report" checked>
+        <span>Save full report (to results/ folder)</span>
+      </label>
+    </div>
+
+    <button class="btn-start" id="btn-start" onclick="startAnalysis()">
+      START ANALYSIS
+    </button>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- DASHBOARD (shown during analysis)                              -->
+  <!-- ============================================================= -->
+  <div id="dashboard">
+    <!-- Backtest progress bar (visible only in backtest mode) -->
+    <div class="backtest-progress" id="backtest-progress">
+      <div class="backtest-progress-header">
+        <span class="backtest-progress-label">BACKTEST</span>
+        <span class="backtest-progress-date" id="bt-current-date">—</span>
+        <span class="backtest-progress-counter" id="bt-counter">0 / 0</span>
+      </div>
+      <div class="backtest-progress-track">
+        <div class="backtest-progress-fill" id="bt-fill"></div>
+      </div>
+    </div>
+    <div class="dashboard-grid">
+      <!-- Agent pipeline (left, clickable) -->
+      <div class="card panel-agents">
+        <div class="card-title">AGENT PIPELINE</div>
+        <div id="agent-list"></div>
+      </div>
+
+      <!-- ===== RIGHT PANE: data monitors (default) OR agent monitor ===== -->
+      <div class="right-pane">
+
+        <!-- Data / quality monitors (the default right-pane content) -->
+        <div id="data-monitors">
+          <!-- Metrics strip -->
+          <div class="metrics-strip" id="metrics-strip">
+            <div class="metric-card">
+              <div class="metric-label">Social SNR</div>
+              <div class="metric-value" id="metric-social-value">—</div>
+              <div class="metric-sub dim" id="metric-social-sub">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">News Items</div>
+              <div class="metric-value" id="metric-news-value">—</div>
+              <div class="metric-sub dim" id="metric-news-sub">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">10-K Filing</div>
+              <div class="metric-value" id="metric-filing-value">—</div>
+              <div class="metric-sub dim" id="metric-filing-sub">not queried yet</div>
+            </div>
+          </div>
+
+          <!-- Messages -->
+          <div class="card panel-messages">
+            <div class="card-title">ACTIVITY LOG</div>
+            <div id="message-list"></div>
+          </div>
+
+          <!-- Report -->
+          <div class="card panel-report">
+            <div class="card-title">LIVE REPORT</div>
+            <div id="report-content" class="report-content">Waiting for analysis to begin...</div>
+          </div>
+
+          <!-- Database Status -->
+          <div class="card panel-db disabled" id="panel-db">
+            <div class="card-title">MEMORY DATABASE</div>
+            <div class="db-disabled-msg" id="db-disabled-msg">Memory disabled in single-day mode</div>
+            <div class="db-stats-grid">
+              <div class="db-stat-box">
+                <div class="db-stat-value" id="db-reads">0</div>
+                <div class="db-stat-label">Reads</div>
+              </div>
+              <div class="db-stat-box">
+                <div class="db-stat-value" id="db-writes">0</div>
+                <div class="db-stat-label">Writes</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats bar -->
+          <div class="stats-bar">
+            <div class="stat-item">Elapsed: <span id="stat-elapsed">0s</span></div>
+            <div class="stat-item">LLM Calls: <span id="stat-llm">0</span></div>
+            <div class="stat-item">Tool Calls: <span id="stat-tools">0</span></div>
+            <div class="stat-item">Tokens In: <span id="stat-in">0</span></div>
+            <div class="stat-item">Tokens Out: <span id="stat-out">0</span></div>
+          </div>
+        </div>
+
+        <!-- Agent monitor (hidden until an agent is clicked) -->
+        <div class="card" id="agent-detail" style="display:none; overflow-y:auto; max-height:80vh;">
+          <div class="detail-header">
+            <h2 id="detail-agent-name">Agent</h2>
+          </div>
+          <div class="detail-date-note" id="detail-date-note" style="display:none;"></div>
+          <div id="detail-body"></div>
+          <div class="detail-footer">
+            <button class="btn-back" id="detail-back" style="margin-top:0;" onclick="closeAgentDetail()">&larr; Back to data monitors</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- RESULTS (shown after analysis completes)                       -->
+  <!-- ============================================================= -->
+  <div id="results" class="hidden">
+    <!-- Replay / cache banner (shown only when loaded from cache) -->
+    <div id="replay-banner" class="replay-banner" style="display:none;"></div>
+
+    <!-- Backtest day selector (shown only in backtest mode) -->
+    <div id="results-day-selector" class="report-day-selector" style="display:none;">
+      <span>Trade date:</span>
+      <select id="results-day-select" onchange="onResultsDayChange()"></select>
+    </div>
+
+    <div id="decision-banner" class="decision-banner"></div>
+
+    <!-- Backtest analytics (interactive: tunable params, live chart + table) -->
+    <div class="card" id="backtest-analytics" style="display:none;">
+      <div class="card-title">BACKTEST PERFORMANCE</div>
+
+      <!-- Ticker selector (multi-stock only; hidden for single ticker) -->
+      <div class="bt-ticker-row" id="bt-ticker-row" style="display:none;">
+        <span>Ticker:</span>
+        <select id="bt-ticker-select"></select>
+      </div>
+
+      <!-- Tunable strategy parameters -->
+      <div class="bt-params">
+        <label class="bt-param">
+          <span>Overweight position</span>
+          <input type="number" id="bt-overweight" min="0" max="1" step="0.05" value="0.75">
+        </label>
+        <label class="bt-param">
+          <span>Underweight position</span>
+          <input type="number" id="bt-underweight" min="0" max="1" step="0.05" value="0.25">
+        </label>
+        <label class="bt-param">
+          <span>Turnover cost (bps)</span>
+          <input type="number" id="bt-cost-bps" min="0" max="100" step="1" value="5">
+        </label>
+        <label class="bt-param">
+          <span>Confidence gate</span>
+          <input type="number" id="bt-conf-gate" min="0" max="1" step="0.05" value="0.55">
+        </label>
+      </div>
+      <div class="bt-warning" id="bt-warning" style="display:none;">
+        Underweight exceeds overweight — the rating ladder is inverted.
+      </div>
+
+      <!-- Client-rendered equity comparison chart (inline SVG) -->
+      <div id="bt-chart" class="backtest-chart"></div>
+      <div class="bt-legend">
+        <span class="bt-legend-item"><span class="bt-swatch bt-swatch-strat"></span>Strategy</span>
+        <span class="bt-legend-item"><span class="bt-swatch bt-swatch-bh"></span>Buy &amp; Hold</span>
+      </div>
+
+      <div id="backtest-table-wrap"></div>
+
+      <div class="bt-save-row">
+        <button class="btn-start bt-save-btn" id="bt-save-btn" onclick="saveBacktest()">Save results</button>
+        <span class="bt-save-status" id="bt-save-status"></span>
+      </div>
+    </div>
+
+    <!-- Decision text -->
+    <div class="card" id="decision-text-card" style="display:none;">
+      <div class="card-title">DECISION</div>
+      <div id="decision-text" class="report-content"></div>
+    </div>
+
+    <!-- Collapsible report sections (populated from the run record) -->
+    <div id="report-sections"></div>
+
+    <!-- Raw full report fallback (used when no structured record is available) -->
+    <div class="card" id="full-report-card">
+      <div class="card-title">FULL REPORT</div>
+      <div id="full-report" class="report-full"></div>
+    </div>
+
+    <div style="text-align:center; margin-top:1rem;">
+      <button class="btn-back" onclick="resetForm()">New Analysis</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================== */
+/* State                                                               */
+/* ================================================================== */
+let currentJobId = null;
+let eventSource = null;
+const reportSections = {};
+let parallelAnalysts = null;  // null = unknown, true/false = determined
+let lastAgents = null;        // latest full agent status map
+let debateMeta = {};          // debate round numbers
+let currentRunMode = 'single';
+let currentTicker = null;     // primary ticker under analysis
+let jobRunning = false;       // true while SSE job is active
+let selectedAgent = null;     // name of agent whose detail view is open (or null)
+let recordPollTimer = null;   // setInterval handle for record polling
+let lastRecord = null;        // most recent run record JSON
+let lastAgentViewHash = null; // hash of the agent panel's last-rendered data
+let lastAgentViewDate = null; // date the agent panel is currently showing
+
+/* ================================================================== */
+/* Initialization                                                      */
+/* ================================================================== */
+document.addEventListener('DOMContentLoaded', () => {
+  // Set default dates
+  const today = new Date().toISOString().slice(0, 10);
+  const d90 = new Date(Date.now() - 90*86400000).toISOString().slice(0, 10);
+  document.getElementById('analysis-date').value = today;
+  document.getElementById('start-date').value = d90;
+  document.getElementById('end-date').value = today;
+
+  // Load providers
+  loadProviders();
+
+  // Run mode toggle
+  document.querySelectorAll('input[name="run_mode"]').forEach(r => {
+    r.addEventListener('change', onRunModeChange);
+  });
+});
+
+function onRunModeChange() {
+  const mode = document.querySelector('input[name="run_mode"]:checked').value;
+  const isBacktest = mode !== 'single';
+  document.getElementById('date-single').classList.toggle('hidden', isBacktest);
+  document.getElementById('date-range').classList.toggle('hidden', !isBacktest);
+
+  // Update ticker label
+  const label = document.getElementById('ticker-label');
+  if (mode === 'backtest_multi') {
+    label.textContent = 'Ticker symbols, comma-separated (e.g. NVDA, AMD, INTC)';
+  } else {
+    label.textContent = 'Ticker symbol (e.g. SPY, 0700.HK, 7203.T)';
+  }
+}
+
+/* ================================================================== */
+/* Provider / Model loading                                            */
+/* ================================================================== */
+async function loadProviders() {
+  const res = await fetch('/api/providers');
+  const providers = await res.json();
+
+  ['analyst', 'manager'].forEach(role => {
+    const sel = document.getElementById(role + '-provider');
+    providers.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.value;
+      opt.textContent = p.label;
+      sel.appendChild(opt);
+    });
+    // Set defaults
+    if (role === 'analyst') sel.value = 'google';
+    if (role === 'manager') sel.value = 'anthropic';
+    sel.addEventListener('change', () => loadModels(role));
+    loadModels(role);
+  });
+}
+
+async function loadModels(role) {
+  const provider = document.getElementById(role + '-provider').value;
+  const mode = role === 'analyst' ? 'quick' : 'deep';
+  const modelSel = document.getElementById(role + '-model');
+  modelSel.innerHTML = '';
+
+  if (provider === 'openrouter' || provider === 'ollama') {
+    // Free text for these providers
+    modelSel.innerHTML = '<option value="">Enter model ID in ticker field</option>';
+    return;
+  }
+
+  const res = await fetch(`/api/models/${provider}/${mode}`);
+  const models = await res.json();
+  models.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.value;
+    opt.textContent = m.label;
+    modelSel.appendChild(opt);
+  });
+
+  // Show/hide extra config
+  updateExtraConfig(role, provider);
+}
+
+function updateExtraConfig(role, provider) {
+  const container = document.getElementById(role + '-extra');
+  container.innerHTML = '';
+
+  if (provider === 'google') {
+    container.innerHTML = `
+      <div class="form-group" style="margin-top:0.5rem">
+        <label>Thinking Mode</label>
+        <select id="${role}-thinking">
+          <option value="high">Enable Thinking</option>
+          <option value="minimal">Minimal</option>
+        </select>
+      </div>`;
+  } else if (provider === 'openai') {
+    container.innerHTML = `
+      <div class="form-group" style="margin-top:0.5rem">
+        <label>Reasoning Effort</label>
+        <select id="${role}-reasoning">
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="low">Low</option>
+        </select>
+      </div>`;
+  } else if (provider === 'anthropic' && role === 'manager') {
+    container.innerHTML = `
+      <div class="form-group" style="margin-top:0.5rem">
+        <label>Effort Level</label>
+        <select id="${role}-effort">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>`;
+  }
+}
+
+/* ================================================================== */
+/* Start Analysis                                                      */
+/* ================================================================== */
+async function startAnalysis() {
+  const btn = document.getElementById('btn-start');
+  btn.disabled = true;
+  btn.textContent = 'STARTING...';
+
+  const runMode = document.querySelector('input[name="run_mode"]:checked').value;
+  const analysts = Array.from(document.querySelectorAll('input[name="analyst"]:checked'))
+                        .map(cb => cb.value);
+
+  if (analysts.length === 0) {
+    alert('Please select at least one analyst.');
+    btn.disabled = false;
+    btn.textContent = 'START ANALYSIS';
+    return;
+  }
+
+  const depth = parseInt(document.querySelector('input[name="depth"]:checked').value);
+  const analystProvider = document.getElementById('analyst-provider').value;
+  const analystModel = document.getElementById('analyst-model').value;
+  const managerProvider = document.getElementById('manager-provider').value;
+  const managerModel = document.getElementById('manager-model').value;
+
+  const payload = {
+    run_mode: runMode,
+    tickers: document.getElementById('ticker').value,
+    analysts: analysts,
+    research_depth: depth,
+    analyst_provider: analystProvider,
+    analyst_model: analystModel,
+    manager_provider: managerProvider,
+    manager_model: managerModel,
+    output_language: document.getElementById('language').value,
+    fresh_run: document.getElementById('fresh-run').checked,
+    save_report: document.getElementById('save-report').checked,
+  };
+
+  currentTicker = (document.getElementById('ticker').value || '').split(',')[0].trim().toUpperCase();
+
+  // Dates
+  if (runMode === 'single') {
+    payload.start_date = document.getElementById('analysis-date').value;
+    payload.end_date = payload.start_date;
+  } else {
+    payload.start_date = document.getElementById('start-date').value;
+    payload.end_date = document.getElementById('end-date').value;
+  }
+
+  // Provider-specific config
+  const at = document.getElementById('analyst-thinking');
+  if (at) payload.google_thinking_level = at.value;
+  const ar = document.getElementById('analyst-reasoning');
+  if (ar) payload.openai_reasoning_effort = ar.value;
+  const me = document.getElementById('manager-effort');
+  if (me) payload.anthropic_effort = me.value;
+  const mt = document.getElementById('manager-thinking');
+  if (mt) payload.google_thinking_level = mt.value;
+  const mr = document.getElementById('manager-reasoning');
+  if (mr) payload.openai_reasoning_effort = mr.value;
+
+  try {
+    const res = await fetch('/api/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    currentJobId = data.job_id;
+
+    // Switch to dashboard
+    document.getElementById('config-form').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('results').classList.add('hidden');
+
+    // Clear previous state
+    document.getElementById('agent-list').innerHTML = '';
+    document.getElementById('message-list').innerHTML = '';
+    document.getElementById('report-content').textContent = 'Waiting for analysis to begin...';
+    document.getElementById('db-reads').textContent = '0';
+    document.getElementById('db-writes').textContent = '0';
+    document.getElementById('backtest-progress').style.display = 'none';
+    document.getElementById('bt-fill').style.width = '0%';
+    document.getElementById('stat-elapsed').textContent = '0s';
+    document.getElementById('stat-llm').textContent = '0';
+    document.getElementById('stat-tools').textContent = '0';
+    document.getElementById('stat-in').textContent = '0';
+    document.getElementById('stat-out').textContent = '0';
+    Object.keys(reportSections).forEach(k => delete reportSections[k]);
+    parallelAnalysts = null;
+    currentRunMode = runMode;
+    updateDbPanel();
+
+    // Reset agent-detail / metrics / record state
+    selectedAgent = null;
+    lastRecord = null;
+    closeAgentDetail();
+    resetMetricsStrip();
+    jobRunning = true;
+
+    // Start SSE
+    connectSSE(currentJobId);
+
+    // Begin polling the run record (~2s) for metrics + agent detail.
+    startRecordPolling();
+  } catch (e) {
+    alert('Failed to start analysis: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'START ANALYSIS';
+  }
+}
+
+/* ================================================================== */
+/* SSE Connection                                                      */
+/* ================================================================== */
+function connectSSE(jobId) {
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource(`/api/stream/${jobId}`);
+
+  eventSource.addEventListener('status', (e) => {
+    const data = JSON.parse(e.data);
+    if (data.parallel_analysts !== undefined && data.parallel_analysts !== null) {
+      parallelAnalysts = data.parallel_analysts;
+    }
+    if (data.run_mode) currentRunMode = data.run_mode;
+    if (data.debate_meta) debateMeta = data.debate_meta;
+    if (data.agents) {
+      lastAgents = data.agents;
+      renderAgents(lastAgents);
+    }
+    // Single-agent status update (e.g. Media Labeling from FinBERT callback)
+    if (data.agent && data.state && lastAgents) {
+      lastAgents[data.agent] = data.state;
+      renderAgents(lastAgents);
+    }
+    if (data.stats) renderStats(data.stats);
+    if (data.db_stats) renderDbStats(data.db_stats);
+    updateDbPanel();
+  });
+
+  eventSource.addEventListener('message', (e) => {
+    const data = JSON.parse(e.data);
+    appendMessage(data.type, data.content);
+  });
+
+  eventSource.addEventListener('tool', (e) => {
+    const data = JSON.parse(e.data);
+    appendMessage('Tool', data.name);
+  });
+
+  eventSource.addEventListener('backtest_progress', (e) => {
+    const data = JSON.parse(e.data);
+    const bar = document.getElementById('backtest-progress');
+    bar.style.display = 'block';
+    document.getElementById('bt-current-date').textContent = data.current_date;
+    document.getElementById('bt-counter').textContent =
+      `Day ${data.day_index} / ${data.total_days}  ·  ${data.ticker}`;
+    const pct = (data.day_index / data.total_days) * 100;
+    document.getElementById('bt-fill').style.width = pct + '%';
+    // Clear live report for each new day
+    Object.keys(reportSections).forEach(k => delete reportSections[k]);
+    renderReport();
+  });
+
+  eventSource.addEventListener('report', (e) => {
+    const data = JSON.parse(e.data);
+    reportSections[data.section] = data.content;
+    renderReport();
+  });
+
+  eventSource.addEventListener('complete', (e) => {
+    const data = JSON.parse(e.data);
+    eventSource.close();
+    eventSource = null;
+    jobRunning = false;
+    if (data.db_stats) renderDbStats(data.db_stats);
+    // One last record fetch so the final report renders from the record.
+    fetchRecord().finally(() => showResults(data));
+  });
+
+  eventSource.addEventListener('error', (e) => {
+    // Check if it's an SSE error event with data
+    if (e.data) {
+      const data = JSON.parse(e.data);
+      eventSource.close();
+      eventSource = null;
+      showError(data);
+    }
+  });
+
+  eventSource.onerror = () => {
+    // Connection lost — not necessarily a job error
+  };
+}
+
+/* ================================================================== */
+/* Rendering                                                           */
+/* ================================================================== */
+const AGENT_GROUPS = [
+  { key: 'analysts', label: 'Analyst Team', names: ['Market Analyst', 'Social Analyst', 'News Analyst', 'Fundamentals Analyst', 'Media Labeling'] },
+  { key: 'research', label: 'Research Team', names: ['Bull Researcher', 'Bear Researcher', 'Judge', 'Research Manager'] },
+  { key: 'trading',  label: 'Trading Team',  names: ['Trader'] },
+  { key: 'risk',     label: 'Risk Management', names: ['Aggressive Analyst', 'Neutral Analyst', 'Conservative Analyst'] },
+  { key: 'portfolio', label: 'Portfolio',     names: ['Portfolio Manager'] },
+];
+
+function _agentRowHtml(name, state) {
+  // Map the GUI's per-agent display rows to the run-record agent name used by
+  // the detail view (the record groups bull/bear/judge into "Researcher Round").
+  const recName = recordAgentName(name);
+  const active = (selectedAgent === recName) ? ' active' : '';
+  const safeName = name.replace(/'/g, "\\'");
+  return `<div class="agent-row clickable${active}" onclick="openAgentDetail('${safeName}')" title="View ${escapeHtml(name)} detail">
+    <div class="agent-dot ${state}"></div>
+    <span class="agent-name">${name}</span>
+  </div>`;
+}
+
+/* Map a GUI display-row name to the agent key used in the run record. */
+function recordAgentName(displayName) {
+  const map = {
+    'Bull Researcher': 'Researcher Round',
+    'Bear Researcher': 'Researcher Round',
+    'Judge': 'Judge Researcher',
+    'Media Labeling': 'Social Analyst',
+  };
+  return map[displayName] || displayName;
+}
+
+function renderAgents(agents) {
+  const el = document.getElementById('agent-list');
+  let html = '';
+  let groupIndex = 0;
+
+  for (const group of AGENT_GROUPS) {
+    const activeNames = group.names.filter(n => n in agents);
+    if (activeNames.length === 0) continue;
+
+    // Add connector arrow between groups
+    if (groupIndex > 0) {
+      html += `<div class="group-connector">|</div>`;
+    }
+
+    // Analyst group: show parallel/serial mode
+    if (group.key === 'analysts') {
+      const isParallel = parallelAnalysts === true;
+      const modeLabel = parallelAnalysts === null ? '' :
+        (isParallel
+          ? '<span class="exec-mode-badge parallel">PARALLEL</span>'
+          : '<span class="exec-mode-badge sequential">SEQUENTIAL</span>');
+      html += `<div class="agent-group-title">${group.label}${modeLabel}</div>`;
+
+      // Split analysts and non-analysts (Media Labeling)
+      const analystNames = activeNames.filter(n => n !== 'Media Labeling');
+      const hasMediaLabeling = activeNames.includes('Media Labeling');
+
+      if (isParallel && analystNames.length > 1) {
+        // Parallel bracket
+        html += `<div class="parallel-group">`;
+        for (const name of analystNames) {
+          html += _agentRowHtml(name, agents[name] || 'pending');
+        }
+        html += `</div>`;
+      } else {
+        // Sequential with arrows
+        for (let i = 0; i < analystNames.length; i++) {
+          html += _agentRowHtml(analystNames[i], agents[analystNames[i]] || 'pending');
+          if (i < analystNames.length - 1) {
+            html += `<div class="seq-connector">v</div>`;
+          }
+        }
+      }
+
+      // Media Labeling (always runs with Social Analyst)
+      if (hasMediaLabeling) {
+        html += _agentRowHtml('Media Labeling', agents['Media Labeling'] || 'pending');
+      }
+
+    } else if (group.key === 'research') {
+      // Research team: Bull & Bear debate via Judge, then Manager
+      html += `<div class="agent-group-title">${group.label}<span class="exec-mode-badge sequential">DEBATE</span></div>`;
+      const bull = activeNames.includes('Bull Researcher');
+      const bear = activeNames.includes('Bear Researcher');
+      const judge = activeNames.includes('Judge');
+      const mgr  = activeNames.includes('Research Manager');
+
+      // Bull & Bear report to Judge in a debate loop
+      const roundNum = debateMeta.research_round || 0;
+      const roundLabel = roundNum > 0
+        ? `<div class="debate-round-label">Round ${roundNum}</div>`
+        : `<div class="debate-round-label">Waiting...</div>`;
+
+      if (bull && bear) {
+        html += `<div class="debate-loop">`;
+        html += `<div class="parallel-group">`;
+        html += _agentRowHtml('Bull Researcher', agents['Bull Researcher'] || 'pending');
+        html += _agentRowHtml('Bear Researcher', agents['Bear Researcher'] || 'pending');
+        html += `</div>`;
+        if (judge) {
+          html += `<div class="seq-connector">v</div>`;
+          html += _agentRowHtml('Judge', agents['Judge'] || 'pending');
+          html += roundLabel;
+        }
+        html += `<div class="debate-loop-arrow" title="Judge sends feedback to Bull &amp; Bear for another round">&#x21bb;</div>`;
+        html += `</div>`;
+      } else {
+        if (bull) html += _agentRowHtml('Bull Researcher', agents['Bull Researcher'] || 'pending');
+        if (bear) html += _agentRowHtml('Bear Researcher', agents['Bear Researcher'] || 'pending');
+        if (judge) {
+          html += `<div class="seq-connector">v</div>`;
+          html += _agentRowHtml('Judge', agents['Judge'] || 'pending');
+          html += roundLabel;
+        }
+      }
+      if (mgr) {
+        html += `<div class="seq-connector">v</div>`;
+        html += _agentRowHtml('Research Manager', agents['Research Manager'] || 'pending');
+      }
+
+    } else if (group.key === 'risk') {
+      // Risk: three analysts debate in rotation (sequential)
+      html += `<div class="agent-group-title">${group.label}<span class="exec-mode-badge sequential">DEBATE</span></div>`;
+      for (let i = 0; i < activeNames.length; i++) {
+        html += _agentRowHtml(activeNames[i], agents[activeNames[i]] || 'pending');
+        if (i < activeNames.length - 1) {
+          html += `<div class="seq-connector">v</div>`;
+        }
+      }
+
+    } else {
+      // Default rendering
+      html += `<div class="agent-group-title">${group.label}</div>`;
+      for (const name of activeNames) {
+        html += _agentRowHtml(name, agents[name] || 'pending');
+      }
+    }
+
+    groupIndex++;
+  }
+  el.innerHTML = html;
+}
+
+function appendMessage(type, content) {
+  const el = document.getElementById('message-list');
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const div = document.createElement('div');
+  div.className = 'msg-line';
+  // Truncate long content
+  const truncated = content.length > 120 ? content.slice(0, 120) + '...' : content;
+  div.innerHTML = `<span class="msg-time">${time}</span><span class="msg-type">[${type}]</span><span class="msg-content">${escapeHtml(truncated)}</span>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderReport() {
+  const el = document.getElementById('report-content');
+  const parts = Object.values(reportSections).filter(Boolean);
+  if (parts.length === 0) {
+    el.textContent = 'Waiting for reports...';
+    return;
+  }
+  el.textContent = parts.join('\n\n---\n\n');
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderStats(stats) {
+  if (stats.elapsed !== undefined)
+    document.getElementById('stat-elapsed').textContent = stats.elapsed + 's';
+  if (stats.llm_calls !== undefined)
+    document.getElementById('stat-llm').textContent = stats.llm_calls;
+  if (stats.tool_calls !== undefined)
+    document.getElementById('stat-tools').textContent = stats.tool_calls;
+  if (stats.input_tokens !== undefined)
+    document.getElementById('stat-in').textContent = formatNum(stats.input_tokens);
+  if (stats.output_tokens !== undefined)
+    document.getElementById('stat-out').textContent = formatNum(stats.output_tokens);
+}
+
+function renderDbStats(dbStats) {
+  if (dbStats.reads !== undefined)
+    document.getElementById('db-reads').textContent = dbStats.reads;
+  if (dbStats.writes !== undefined)
+    document.getElementById('db-writes').textContent = dbStats.writes;
+}
+
+function updateDbPanel() {
+  const panel = document.getElementById('panel-db');
+  const msg = document.getElementById('db-disabled-msg');
+  if (currentRunMode === 'single') {
+    panel.classList.add('disabled');
+    msg.style.display = 'block';
+  } else {
+    panel.classList.remove('disabled');
+    msg.style.display = 'none';
+  }
+}
+
+const REPORT_SECTION_META = [
+  { key: 'market_report',          title: 'Market Analysis' },
+  { key: 'sentiment_report',       title: 'Social Sentiment' },
+  { key: 'news_report',            title: 'News Analysis' },
+  { key: 'fundamentals_report',    title: 'Fundamentals Analysis' },
+  { key: 'investment_plan',        title: 'Investment Plan (Research Team)' },
+  { key: 'trader_investment_plan', title: 'Trader Plan' },
+];
+
+let lastCompleteData = null;       // cached SSE completion payload
+
+function showResults(data) {
+  lastCompleteData = data;
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('results').classList.remove('hidden');
+  stopRecordPolling();
+
+  // Replay / cache banner
+  const replayBanner = document.getElementById('replay-banner');
+  if (data.replay) {
+    const d = data.replay_date || currentRecordDate();
+    replayBanner.textContent =
+      `Loaded from cached run of ${d} — click Fresh Run to re-execute.`;
+    replayBanner.style.display = 'block';
+  } else {
+    replayBanner.style.display = 'none';
+  }
+
+  // Backtest date selector — list days from the runs/{ticker}/ directory.
+  const isBacktest = currentRunMode !== 'single';
+  const daySel = document.getElementById('results-day-selector');
+  if (isBacktest && currentTicker) {
+    populateDaySelector();
+  } else {
+    daySel.style.display = 'none';
+  }
+
+  // Backtest analytics: equity-curve chart + strategy-vs-buy&hold table.
+  renderBacktestAnalytics(data);
+
+  // Render report (structured from record if present, else raw fallback).
+  renderFinalReport(data, lastRecord);
+
+  // Stats
+  if (data.stats) renderStats(data.stats);
+}
+
+function currentRecordDate() {
+  return (lastRecord && lastRecord.date) || '';
+}
+
+/* ---------------------------------------------------------------------- */
+/* Interactive backtest completion view                                     */
+/* ---------------------------------------------------------------------- */
+let btTickers = [];            // tickers available for analytics
+let btEvalTimer = null;        // debounce handle for parameter changes
+
+/* Entry point from showResults(): wire up the interactive completion view.
+   Analytics are recomputed client-on-demand via /api/backtest_eval and saved
+   only when the user clicks "Save results" (nothing auto-saved at completion). */
+function renderBacktestAnalytics(data) {
+  const card = document.getElementById('backtest-analytics');
+  if (!data || !data.backtest) {
+    card.style.display = 'none';
+    return;
+  }
+  btTickers = (data.backtest_tickers || []).slice();
+  card.style.display = 'block';
+  document.getElementById('bt-save-status').textContent = '';
+  document.getElementById('bt-save-btn').disabled = false;
+
+  // Ticker dropdown — multi-stock only (hidden for a single ticker).
+  const tickerRow = document.getElementById('bt-ticker-row');
+  const tickerSel = document.getElementById('bt-ticker-select');
+  if (btTickers.length > 1) {
+    tickerSel.innerHTML = '';
+    btTickers.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      tickerSel.appendChild(opt);
+    });
+    tickerSel.value = btTickers[0];
+    tickerRow.style.display = 'flex';
+  } else {
+    tickerRow.style.display = 'none';
+  }
+
+  // Bind controls once (debounced recompute on any change).
+  if (!card.dataset.bound) {
+    ['bt-overweight', 'bt-underweight', 'bt-cost-bps', 'bt-conf-gate'].forEach(id => {
+      document.getElementById(id).addEventListener('input', onBacktestParamChange);
+    });
+    tickerSel.addEventListener('change', () => fetchBacktestEval());
+    card.dataset.bound = '1';
+  }
+
+  // Initial render with the default parameters.
+  fetchBacktestEval();
+}
+
+function onBacktestParamChange() {
+  // Subtle warning when underweight exceeds overweight (allowed by the engine).
+  const ow = parseFloat(document.getElementById('bt-overweight').value);
+  const uw = parseFloat(document.getElementById('bt-underweight').value);
+  const warn = document.getElementById('bt-warning');
+  warn.style.display = (!isNaN(ow) && !isNaN(uw) && uw > ow) ? 'block' : 'none';
+
+  if (btEvalTimer) clearTimeout(btEvalTimer);
+  btEvalTimer = setTimeout(fetchBacktestEval, 300);
+}
+
+function btCurrentParams() {
+  const clamp = (v, lo, hi, d) => {
+    const n = parseFloat(v);
+    if (isNaN(n)) return d;
+    return Math.max(lo, Math.min(hi, n));
+  };
+  return {
+    overweight: clamp(document.getElementById('bt-overweight').value, 0, 1, 0.75),
+    underweight: clamp(document.getElementById('bt-underweight').value, 0, 1, 0.25),
+    cost_bps: clamp(document.getElementById('bt-cost-bps').value, 0, 100, 5),
+    conf_gate: clamp(document.getElementById('bt-conf-gate').value, 0, 1, 0.55),
+  };
+}
+
+function btActiveTicker() {
+  if (btTickers.length > 1) {
+    return document.getElementById('bt-ticker-select').value;
+  }
+  return btTickers[0] || '';
+}
+
+/* Recompute analytics for the active ticker + parameters (server-side eval,
+   no disk write) and re-render the chart + table. */
+async function fetchBacktestEval() {
+  if (!currentJobId || !btTickers.length) return;
+  const p = btCurrentParams();
+  const params = new URLSearchParams({
+    ticker: btActiveTicker(),
+    overweight: p.overweight,
+    underweight: p.underweight,
+    cost_bps: p.cost_bps,
+    conf_gate: p.conf_gate,
+  });
+  try {
+    const res = await fetch(`/api/backtest_eval/${currentJobId}?${params}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    renderBacktestChart(data.equity);
+    renderBacktestTable(data.table, data.n_days);
+  } catch (e) { /* ignore transient errors */ }
+}
+
+/* Inline-SVG equity comparison chart: strategy (solid) vs buy&hold (dashed),
+   with min/max y labels and first/last date x labels. No chart library. */
+function renderBacktestChart(equity) {
+  const host = document.getElementById('bt-chart');
+  const dates = (equity && equity.dates) || [];
+  const strat = (equity && equity.strategy) || [];
+  const bh = (equity && equity.buy_hold) || [];
+  if (!dates.length || strat.length < 2) {
+    host.innerHTML = '<div class="bt-save-status">Not enough data to plot.</div>';
+    return;
+  }
+
+  const W = 720, H = 260, padL = 52, padR = 16, padT = 14, padB = 28;
+  const all = strat.concat(bh).filter(v => typeof v === 'number' && !isNaN(v));
+  let yMin = Math.min(...all), yMax = Math.max(...all);
+  if (yMin === yMax) { yMin -= 0.01; yMax += 0.01; }
+  const n = strat.length;
+  const xAt = i => padL + (i / (n - 1)) * (W - padL - padR);
+  const yAt = v => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
+  const pts = arr => arr.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ');
+
+  const fmt = v => v.toFixed(2) + 'x';
+  const svg = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Equity curve">
+      <line class="bt-grid-line" x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}"></line>
+      <line class="bt-grid-line" x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}"></line>
+      <text class="bt-axis-label" x="${padL - 6}" y="${yAt(yMax) + 3}" text-anchor="end">${fmt(yMax)}</text>
+      <text class="bt-axis-label" x="${padL - 6}" y="${yAt(yMin) + 3}" text-anchor="end">${fmt(yMin)}</text>
+      <text class="bt-axis-label" x="${padL}" y="${H - padB + 16}" text-anchor="start">${escapeHtml(String(dates[0]))}</text>
+      <text class="bt-axis-label" x="${W - padR}" y="${H - padB + 16}" text-anchor="end">${escapeHtml(String(dates[dates.length - 1]))}</text>
+      <polyline class="bt-line-bh" points="${pts(bh)}"></polyline>
+      <polyline class="bt-line-strat" points="${pts(strat)}"></polyline>
+    </svg>`;
+  host.innerHTML = svg;
+}
+
+function renderBacktestTable(rows, nDays) {
+  const wrap = document.getElementById('backtest-table-wrap');
+  if (!rows || !rows.length) { wrap.innerHTML = ''; return; }
+  let html = `<table class="backtest-table">
+    <thead><tr><th>Metric</th><th>Strategy</th><th>Buy &amp; Hold</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr>
+      <td>${escapeHtml(r.metric)}</td>
+      <td class="col-strategy">${escapeHtml(r.strategy)}</td>
+      <td class="col-bh">${escapeHtml(r.buy_hold)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  if (nDays) {
+    html += `<div class="detail-date-note" style="margin-top:0.6rem;">${nDays} trading days</div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+/* Persist analytics for EVERY ticker with the current parameters. */
+async function saveBacktest() {
+  if (!currentJobId) return;
+  const btn = document.getElementById('bt-save-btn');
+  const status = document.getElementById('bt-save-status');
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/backtest_save/${currentJobId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(btCurrentParams()),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      status.textContent = 'Save failed: ' + escapeHtml(data.error || res.statusText);
+    } else {
+      // List every saved folder (one per ticker for multi-stock runs).
+      const folders = Object.values(data.saved || {});
+      status.textContent = folders.length
+        ? 'Saved to ' + folders.map(f => f + '/').join(', ')
+        : 'Nothing to save.';
+    }
+  } catch (e) {
+    status.textContent = 'Save failed.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderFinalReport(data, record) {
+  const banner = document.getElementById('decision-banner');
+  const final = (record && record.final) || null;
+
+  // --- Signal / confidence / horizon banner (prefer record's final signal) ---
+  const sig = (final && final.signal) || data.decision || {};
+  if (sig.signal) {
+    banner.innerHTML = `
+      <div class="decision-signal">${escapeHtml(String(sig.signal))}</div>
+      <div class="decision-meta">
+        ${sig.confidence !== undefined && sig.confidence !== null ? 'Confidence: ' + (sig.confidence * 100).toFixed(0) + '%' : ''}
+        ${sig.horizon ? ' &middot; Horizon: ' + escapeHtml(String(sig.horizon)) : ''}
+      </div>`;
+  } else {
+    banner.innerHTML = '<div class="decision-signal">ANALYSIS COMPLETE</div>';
+  }
+
+  // --- Decision text ---
+  const decTextCard = document.getElementById('decision-text-card');
+  const decText = final ? (final.decision_text || '') : '';
+  if (decText) {
+    document.getElementById('decision-text').textContent = decText;
+    decTextCard.style.display = 'block';
+  } else {
+    decTextCard.style.display = 'none';
+  }
+
+  // --- Collapsible report sections (from the record) ---
+  const sectionsEl = document.getElementById('report-sections');
+  const fullCard = document.getElementById('full-report-card');
+  const reports = (final && final.reports) || null;
+
+  if (reports) {
+    let html = '';
+    REPORT_SECTION_META.forEach((meta, i) => {
+      const content = reports[meta.key];
+      if (content && String(content).trim()) {
+        html += `<details class="report-section"${i === 0 ? ' open' : ''}>
+          <summary>${escapeHtml(meta.title)}</summary>
+          <div class="report-section-body">${escapeHtml(String(content))}</div>
+        </details>`;
+      }
+    });
+    sectionsEl.innerHTML = html;
+    // Hide the raw fallback when we have structured sections.
+    fullCard.style.display = html ? 'none' : 'block';
+    if (!html) {
+      document.getElementById('full-report').textContent = data.report || 'No report generated.';
+    }
+  } else {
+    // No record → fall back to the raw concatenated report.
+    sectionsEl.innerHTML = '';
+    fullCard.style.display = 'block';
+    document.getElementById('full-report').textContent = data.report || 'No report generated.';
+  }
+}
+
+/* ----- Backtest day selector on the results page ----- */
+async function populateDaySelector() {
+  const daySel = document.getElementById('results-day-selector');
+  const select = document.getElementById('results-day-select');
+  try {
+    const res = await fetch(`/api/run_days/${encodeURIComponent(currentTicker)}`);
+    const data = await res.json();
+    const days = data.days || [];
+    if (days.length === 0) { daySel.style.display = 'none'; return; }
+    select.innerHTML = '';
+    days.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = d;
+      select.appendChild(opt);
+    });
+    // Default to the latest completed day.
+    select.value = days[days.length - 1];
+    daySel.style.display = 'flex';
+    onResultsDayChange();
+  } catch (e) {
+    daySel.style.display = 'none';
+  }
+}
+
+async function onResultsDayChange() {
+  const date = document.getElementById('results-day-select').value;
+  if (!currentJobId || !date) return;
+  try {
+    const res = await fetch(`/api/run_record/${currentJobId}?date=${encodeURIComponent(date)}`);
+    const data = await res.json();
+    lastRecord = data.record || null;
+    renderFinalReport(lastCompleteData || {}, lastRecord);
+  } catch (e) { /* ignore */ }
+}
+
+function showError(data) {
+  jobRunning = false;
+  stopRecordPolling();
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('results').classList.remove('hidden');
+  document.getElementById('replay-banner').style.display = 'none';
+  document.getElementById('results-day-selector').style.display = 'none';
+  document.getElementById('backtest-analytics').style.display = 'none';
+  document.getElementById('decision-text-card').style.display = 'none';
+  document.getElementById('report-sections').innerHTML = '';
+  document.getElementById('full-report-card').style.display = 'block';
+  document.getElementById('decision-banner').innerHTML = `
+    <div class="error-box">
+      <strong>Error:</strong> ${escapeHtml(data.message || 'Unknown error')}\n\n${escapeHtml(data.traceback || '')}
+    </div>`;
+  document.getElementById('full-report').textContent = '';
+}
+
+function resetForm() {
+  jobRunning = false;
+  stopRecordPolling();
+  selectedAgent = null;
+  closeAgentDetail();
+  document.getElementById('config-form').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('results').classList.add('hidden');
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-start').textContent = 'START ANALYSIS';
+}
+
+/* ================================================================== */
+/* Run-record polling (metrics strip + agent detail)                   */
+/* ================================================================== */
+function startRecordPolling() {
+  if (recordPollTimer) clearInterval(recordPollTimer);
+  fetchRecord();  // immediate first fetch
+  recordPollTimer = setInterval(fetchRecord, 2000);
+}
+
+function stopRecordPolling() {
+  if (recordPollTimer) { clearInterval(recordPollTimer); recordPollTimer = null; }
+}
+
+async function fetchRecord() {
+  if (!currentJobId) return;
+  try {
+    const res = await fetch(`/api/run_record/${currentJobId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    lastRecord = data.record || null;
+    renderMetricsStrip(lastRecord);
+    if (selectedAgent) refreshAgentDetail();
+    // Stop polling once the job has finished and we have a record.
+    if (!jobRunning && data.job_status === 'done') stopRecordPolling();
+  } catch (e) { /* network hiccup — keep polling */ }
+}
+
+/* ----- Metrics strip ----- */
+function resetMetricsStrip() {
+  document.getElementById('metric-social-value').textContent = '—';
+  setSub('metric-social-sub', '—', true);
+  document.getElementById('metric-news-value').textContent = '—';
+  setSub('metric-news-sub', '—', true);
+  document.getElementById('metric-filing-value').textContent = '—';
+  setSub('metric-filing-sub', 'not queried yet', true);
+}
+
+function setSub(id, text, dim) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.toggle('dim', !!dim);
+}
+
+function renderMetricsStrip(record) {
+  const metrics = (record && record.metrics) || {};
+
+  // --- Social SNR ---
+  const social = metrics.social;
+  if (social) {
+    if (social.status === 'missing_historical') {
+      document.getElementById('metric-social-value').textContent = 'N/A';
+      setSub('metric-social-sub', 'No historical social data for this date', true);
+    } else {
+      const fetched = social.fetched || 0;
+      const onTarget = social.on_target || 0;
+      const snrPct = social.snr !== undefined && social.snr !== null
+        ? (social.snr * 100).toFixed(0) + '%' : '—';
+      document.getElementById('metric-social-value').textContent =
+        `${onTarget}/${fetched} (${snrPct})`;
+      if (onTarget > 0 && social.sample) {
+        setSub('metric-social-sub', social.sample, false);
+      } else {
+        setSub('metric-social-sub', 'No on-target social posts today', true);
+      }
+    }
+  } else {
+    document.getElementById('metric-social-value').textContent = '—';
+    setSub('metric-social-sub', '—', true);
+  }
+
+  // --- News items ---
+  const news = metrics.news;
+  if (news) {
+    const total = (news.get_news || 0) + (news.get_global_news || 0);
+    document.getElementById('metric-news-value').textContent = String(total);
+    setSub('metric-news-sub',
+      `company: ${news.get_news || 0} · global: ${news.get_global_news || 0}`, false);
+  } else {
+    document.getElementById('metric-news-value').textContent = '—';
+    setSub('metric-news-sub', '—', true);
+  }
+
+  // --- 10-K filing ---
+  const filing = metrics.filing;
+  if (!filing) {
+    document.getElementById('metric-filing-value').textContent = '—';
+    setSub('metric-filing-sub', 'not queried yet', true);
+  } else if (filing.available) {
+    const form = filing.form || '10-K';
+    const filed = filing.filed_date || '?';
+    document.getElementById('metric-filing-value').textContent = `${form} filed ${filed}`;
+    setSub('metric-filing-sub', filing.sample || `${filing.n_hits || 0} excerpts retrieved`,
+      !filing.sample);
+  } else {
+    document.getElementById('metric-filing-value').textContent = 'None';
+    setSub('metric-filing-sub', 'no filing on EDGAR', true);
+  }
+}
+
+/* ================================================================== */
+/* Agent detail view                                                   */
+/* ================================================================== */
+function openAgentDetail(displayName) {
+  selectedAgent = recordAgentName(displayName);
+  // Hide data monitors, show the agent monitor in the right pane.
+  setOverviewVisible(false);
+  document.getElementById('agent-detail').style.display = 'block';
+  document.getElementById('detail-agent-name').textContent = selectedAgent;
+  // Reset render cache so the freshly-opened agent always renders once.
+  lastAgentViewHash = null;
+  lastAgentViewDate = null;
+  if (lastAgents) renderAgents(lastAgents);  // refresh active highlight
+  refreshAgentDetail();  // fetch + render
+}
+
+function closeAgentDetail() {
+  selectedAgent = null;
+  lastAgentViewHash = null;
+  lastAgentViewDate = null;
+  document.getElementById('agent-detail').style.display = 'none';
+  setOverviewVisible(true);
+  if (lastAgents) renderAgents(lastAgents);
+}
+
+/* Fetch the watched agent's most-recent data (server resolves the day-rollover
+   fallback) and render only when its content actually changed. */
+async function refreshAgentDetail() {
+  if (!selectedAgent || !currentJobId) return;
+  const agent = selectedAgent;  // capture in case selection changes mid-flight
+  let payload;
+  try {
+    const res = await fetch(
+      `/api/agent_view/${currentJobId}/${encodeURIComponent(agent)}`);
+    if (!res.ok) return;
+    payload = await res.json();
+  } catch (e) { return; }
+  // Selection may have changed while the request was in flight.
+  if (selectedAgent !== agent) return;
+  renderAgentDetail(payload);
+}
+
+/* Toggle the right pane between the data monitors and the agent monitor. */
+function setOverviewVisible(show) {
+  const monitors = document.getElementById('data-monitors');
+  if (monitors) monitors.style.display = show ? '' : 'none';
+}
+
+/* Stable hash of a JSON-ish value (FNV-1a over the serialized form). */
+function _hashStr(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return h.toString(16);
+}
+
+function renderAgentDetail(payload) {
+  const body = document.getElementById('detail-body');
+  if (!selectedAgent) return;
+
+  payload = payload || {};
+  const a = payload.agent_data || null;
+  const viewDate = payload.date || null;
+  const isCurrentDay = payload.is_current_day !== false;
+
+  // --- Skip re-render when nothing changed (Issue 3 + Issue 4) -------------
+  // The hash includes the served date so a genuine new-day update for this
+  // agent DOES re-render, while updates to OTHER agents (which leave this
+  // agent's data + date untouched) never trigger a re-render.
+  const hash = _hashStr(JSON.stringify({ d: viewDate, a: a }));
+  if (hash === lastAgentViewHash && viewDate === lastAgentViewDate) {
+    return;  // identical — preserve the user's expanded <details>/scroll.
+  }
+
+  // Capture currently-open <details> keys + scroll so we can restore them.
+  const openKeys = new Set();
+  body.querySelectorAll('details[data-key]').forEach(d => {
+    if (d.open) openKeys.add(d.getAttribute('data-key'));
+  });
+  const prevScroll = document.getElementById('agent-detail').scrollTop;
+
+  lastAgentViewHash = hash;
+  lastAgentViewDate = viewDate;
+
+  // Update status pill in header.
+  const nameEl = document.getElementById('detail-agent-name');
+  const state = a ? (a.status || 'pending') : 'pending';
+  nameEl.innerHTML = `${escapeHtml(selectedAgent)}<span class="detail-status-pill ${state}">${state}</span>`;
+
+  // Date note: flag when we are showing a previous day's data (fallback).
+  const note = document.getElementById('detail-date-note');
+  if (viewDate) {
+    if (isCurrentDay) {
+      note.textContent = `showing ${viewDate}`;
+      note.className = 'detail-date-note';
+    } else {
+      note.textContent = `showing ${viewDate} (previous day)`;
+      note.className = 'detail-date-note fallback';
+    }
+    note.style.display = 'block';
+  } else {
+    note.style.display = 'none';
+  }
+
+  if (!a) {
+    body.innerHTML = `<div class="detail-empty">No data yet for this agent.</div>`;
+    return;
+  }
+
+  let html = '';
+
+  // --- Inputs received ---
+  html += `<div class="detail-section"><div class="detail-section-title">Inputs received</div>`;
+  const inputs = a.inputs || {};
+  const inputKeys = Object.keys(inputs);
+  if (inputKeys.length === 0) {
+    html += `<div class="detail-empty">—</div>`;
+  } else {
+    for (const k of inputKeys) {
+      html += `<div class="detail-input-row">
+        <div class="detail-input-key">${escapeHtml(k)}</div>
+        <div class="detail-input-val">${escapeHtml(String(inputs[k]))}</div>
+      </div>`;
+    }
+  }
+  html += `</div>`;
+
+  // --- LLM turns ---
+  html += `<div class="detail-section"><div class="detail-section-title">LLM turns</div>`;
+  const turns = a.llm_turns || [];
+  if (turns.length === 0) {
+    html += `<div class="detail-empty">—</div>`;
+  } else {
+    turns.forEach((t, i) => {
+      let badges = '';
+      (t.tool_calls || []).forEach(tn => {
+        badges += `<span class="tool-badge">${escapeHtml(tn)}</span>`;
+      });
+      html += `<div class="llm-turn">
+        <div class="llm-turn-head">${escapeHtml(t.content_head || '(no content)')}</div>
+        ${badges ? `<div>${badges}</div>` : ''}
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  // --- Tool calls ---
+  html += `<div class="detail-section"><div class="detail-section-title">Tool calls</div>`;
+  const tcs = a.tool_calls || [];
+  if (tcs.length === 0) {
+    html += `<div class="detail-empty">—</div>`;
+  } else {
+    tcs.forEach((tc, i) => {
+      const argsStr = JSON.stringify(tc.args || {}, null, 2);
+      const key = `${selectedAgent}|tool_call|${i}`;
+      const isOpen = openKeys.has(key) ? ' open' : '';
+      html += `<details class="tool-panel" data-key="${escapeHtml(key)}"${isOpen}>
+        <summary>
+          <span class="tool-panel-name">${escapeHtml(tc.tool || 'tool')}</span>
+          <span class="tool-panel-meta">${tc.result_chars || 0} chars</span>
+        </summary>
+        <div class="tool-panel-body">
+          <div class="tool-args"><strong>args:</strong> ${escapeHtml(argsStr)}</div>
+          <pre class="tool-result">${escapeHtml(tc.result_text || '')}</pre>
+        </div>
+      </details>`;
+    });
+  }
+  html += `</div>`;
+
+  // --- Memory retrievals ---
+  html += `<div class="detail-section"><div class="detail-section-title">Memory retrievals</div>`;
+  const mems = a.memory || [];
+  if (mems.length === 0) {
+    html += `<div class="detail-empty">—</div>`;
+  } else {
+    mems.forEach(m => {
+      let hits = '';
+      (m.hits || []).forEach(h => {
+        const sim = (h.similarity !== undefined && h.similarity !== null)
+          ? Number(h.similarity).toFixed(3) : '—';
+        const td = h.trade_date ? ` · ${escapeHtml(h.trade_date)}` : '';
+        hits += `<div class="mem-hit"><span class="mem-sim">${sim}</span>${td} — ${escapeHtml(h.text_head || '')}</div>`;
+      });
+      html += `<div class="mem-event">
+        <div class="mem-room">${escapeHtml(m.room || '')}</div>
+        <div class="mem-query">${escapeHtml(m.query_head || '')}</div>
+        ${hits || '<div class="detail-empty">no hits</div>'}
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  // --- Output ---
+  html += `<div class="detail-section"><div class="detail-section-title">Output</div>`;
+  const output = a.output || {};
+  const outKeys = Object.keys(output);
+  if (outKeys.length === 0) {
+    html += `<div class="detail-empty">—</div>`;
+  } else {
+    for (const k of outKeys) {
+      const o = output[k] || {};
+      html += `<div class="detail-input-key">${escapeHtml(k)} (${o.chars || 0} chars)</div>
+        <div class="detail-output">${escapeHtml(o.text || '')}</div>`;
+    }
+  }
+  html += `</div>`;
+
+  body.innerHTML = html;
+
+  // Restore the agent monitor's scroll position after the re-render.
+  document.getElementById('agent-detail').scrollTop = prevScroll;
+}
+
+/* ================================================================== */
+/* Helpers                                                             */
+/* ================================================================== */
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function formatNum(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+</script>
+</body>
+</html>

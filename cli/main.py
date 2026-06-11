@@ -25,12 +25,21 @@ from rich.rule import Rule
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.observability import load_record
 from tradingagents.agents.utils.social_data_tools import set_finbert_status_callback
 from tradingagents.dataflows.backtest_cache import get_backtest_cache
 from cli.models import AnalystType
 from cli.utils import *
-from cli.announcements import fetch_announcements, display_announcements
 from cli.stats_handler import StatsCallbackHandler
+from tradingagents.streaming import (
+    ANALYST_ORDER,
+    ANALYST_AGENT_NAMES,
+    ANALYST_REPORT_MAP,
+    REPORT_SECTIONS as _SHARED_REPORT_SECTIONS,
+    REPORT_SECTION_TITLES,
+    build_initial_agent_status,
+    build_report_section_keys,
+)
 
 console = Console()
 
@@ -51,26 +60,14 @@ class MessageBuffer:
         "Portfolio Management": ["Portfolio Manager"],
     }
 
-    # Analyst name mapping
-    ANALYST_MAPPING = {
-        "market": "Market Analyst",
-        "social": "Social Analyst",
-        "news": "News Analyst",
-        "fundamentals": "Fundamentals Analyst",
-    }
+    # Analyst name mapping (shared with the GUI via tradingagents.streaming).
+    ANALYST_MAPPING = ANALYST_AGENT_NAMES
 
     # Report section mapping: section -> (analyst_key for filtering, finalizing_agent)
     # analyst_key: which analyst selection controls this section (None = always included)
     # finalizing_agent: which agent must be "completed" for this report to count as done
-    REPORT_SECTIONS = {
-        "market_report": ("market", "Market Analyst"),
-        "sentiment_report": ("social", "Social Analyst"),
-        "news_report": ("news", "News Analyst"),
-        "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
-        "investment_plan": (None, "Research Manager"),
-        "trader_investment_plan": (None, "Trader"),
-        "final_trade_decision": (None, "Portfolio Manager"),
-    }
+    # Shared with the GUI via tradingagents.streaming.
+    REPORT_SECTIONS = _SHARED_REPORT_SECTIONS
 
     def __init__(self, max_length=100):
         self.messages = deque(maxlen=max_length)
@@ -91,26 +88,14 @@ class MessageBuffer:
         """
         self.selected_analysts = [a.lower() for a in selected_analysts]
 
-        # Build agent_status dynamically
-        self.agent_status = {}
-
-        # Add selected analysts
-        for analyst_key in self.selected_analysts:
-            if analyst_key in self.ANALYST_MAPPING:
-                if analyst_key == "social":
-                    self.agent_status["Media Labeling"] = "pending"
-                self.agent_status[self.ANALYST_MAPPING[analyst_key]] = "pending"
-
-        # Add fixed teams
-        for team_agents in self.FIXED_AGENTS.values():
-            for agent in team_agents:
-                self.agent_status[agent] = "pending"
-
-        # Build report_sections dynamically
-        self.report_sections = {}
-        for section, (analyst_key, _) in self.REPORT_SECTIONS.items():
-            if analyst_key is None or analyst_key in self.selected_analysts:
-                self.report_sections[section] = None
+        # Build agent_status and report sections via the shared streaming helpers.
+        self.agent_status = build_initial_agent_status(
+            self.selected_analysts, self.FIXED_AGENTS
+        )
+        self.report_sections = {
+            section: None
+            for section in build_report_section_keys(self.selected_analysts)
+        }
 
         # Reset other state
         self.current_report = None
@@ -172,17 +157,8 @@ class MessageBuffer:
                
         if latest_section and latest_content:
             # Format the current section for display
-            section_titles = {
-                "market_report": "Market Analysis",
-                "sentiment_report": "Social Sentiment",
-                "news_report": "News Analysis",
-                "fundamentals_report": "Fundamentals Analysis",
-                "investment_plan": "Research Team Decision",
-                "trader_investment_plan": "Trading Team Plan",
-                "final_trade_decision": "Portfolio Management Decision",
-            }
             self.current_report = (
-                f"### {section_titles[latest_section]}\n{latest_content}"
+                f"### {REPORT_SECTION_TITLES[latest_section]}\n{latest_content}"
             )
 
         # Update the final complete report
@@ -241,7 +217,9 @@ def create_layout():
         Layout(name="footer", size=3),
     )
     layout["main"].split_column(
-        Layout(name="upper", ratio=4), Layout(name="analysis", ratio=5)
+        Layout(name="upper", ratio=4),
+        Layout(name="data_quality", size=8),
+        Layout(name="analysis", ratio=5),
     )
     layout["upper"].split_row(
         Layout(name="progress", ratio=2), Layout(name="messages", ratio=3)
@@ -256,7 +234,142 @@ def format_tokens(n):
     return str(n)
 
 
-def update_display(layout, spinner_text=None, stats_handler=None, start_time=None):
+# ---------------------------------------------------------------------------
+# Data Quality panel — reads the run record written by tradingagents.observability
+# ---------------------------------------------------------------------------
+
+# Cache for the run record so the small JSON file is read at most ~once/second
+# during the live display. Holds (runs_dir, ticker, date) -> (timestamp, record).
+_DQ_RECORD_CACHE: dict = {"key": None, "ts": 0.0, "record": None}
+
+
+def _read_run_record(runs_dir, ticker, date, ttl=1.0):
+    """Read the run record, caching the last read for `ttl` seconds.
+
+    Degrades gracefully: any read failure returns the last cached record
+    (or None) instead of raising, so the live UI never crashes.
+    """
+    key = (str(runs_dir), str(ticker), str(date))
+    now = time.time()
+    cache = _DQ_RECORD_CACHE
+    if cache["key"] == key and (now - cache["ts"]) < ttl:
+        return cache["record"]
+    try:
+        record = load_record(str(runs_dir), str(ticker), str(date))
+    except Exception:
+        record = cache["record"] if cache["key"] == key else None
+    cache["key"] = key
+    cache["ts"] = now
+    cache["record"] = record
+    return record
+
+
+def _truncate(text, limit=100):
+    """Truncate a string to `limit` chars with an ellipsis, collapsing newlines."""
+    s = str(text).replace("\n", " ").strip()
+    if len(s) > limit:
+        return s[: limit - 1] + "…"
+    return s
+
+
+def _build_data_quality_text(record) -> Text:
+    """Render the three Data Quality lines (Social / News / 10-K) from a record.
+
+    Never raises on partial/missing data — falls back to "pending" strings.
+    """
+    text = Text()
+    metrics = (record or {}).get("metrics") or {}
+
+    # --- Social ---
+    social = metrics.get("social")
+    if not isinstance(social, dict):
+        text.append("Social: pending\n", style="yellow")
+    else:
+        status = social.get("status")
+        if status == "no_relevant":
+            text.append("No on-target social posts today\n", style="white")
+        elif status == "missing_historical":
+            text.append("No historical social data (backtest date)\n", style="white")
+        else:
+            fetched = social.get("fetched", 0) or 0
+            on_target = social.get("on_target", 0) or 0
+            snr = social.get("snr")
+            snr_str = f"{snr:.0%}" if isinstance(snr, (int, float)) else "n/a"
+            text.append(
+                f"Social SNR: {on_target}/{fetched} ({snr_str})\n", style="white"
+            )
+            sample = social.get("sample")
+            if sample:
+                text.append(f"  {_truncate(sample)}\n", style="dim")
+
+    # --- News ---
+    news = metrics.get("news")
+    if not isinstance(news, dict) or not news:
+        text.append("News: pending\n", style="yellow")
+    else:
+        total = sum(v for v in news.values() if isinstance(v, (int, float)))
+        breakdown = ", ".join(f"{k}={v}" for k, v in news.items())
+        text.append(f"News items: {total} ({breakdown})\n", style="white")
+
+    # --- 10-K ---
+    filing = metrics.get("filing")
+    if not isinstance(filing, dict):
+        text.append("10-K: not queried yet", style="white")
+    elif not filing.get("available"):
+        text.append("10-K: no filing on EDGAR", style="white")
+    else:
+        form = filing.get("form", "10-K")
+        filed_date = filing.get("filed_date", "?")
+        n_hits = filing.get("n_hits", 0)
+        text.append(f"10-K: {form} filed {filed_date}, {n_hits} hits", style="white")
+        sample = filing.get("sample")
+        if sample:
+            text.append(f"\n  {_truncate(sample)}", style="dim")
+
+    return text
+
+
+def _build_backtest_digest(runs_dir, ticker, date, signal) -> str:
+    """Build a one-line metrics digest string for a single backtest day.
+
+    Format: "{date}: social {on_target}/{fetched}, news {total}, 10-K {form|none}, signal {signal}"
+    Never raises — missing/partial record fields fall back to 0 / none.
+    """
+    try:
+        record = load_record(str(runs_dir), str(ticker), str(date))
+    except Exception:
+        record = None
+    metrics = (record or {}).get("metrics") or {}
+
+    social = metrics.get("social") if isinstance(metrics.get("social"), dict) else {}
+    on_target = social.get("on_target", 0) or 0
+    fetched = social.get("fetched", 0) or 0
+
+    news = metrics.get("news") if isinstance(metrics.get("news"), dict) else {}
+    news_total = sum(v for v in news.values() if isinstance(v, (int, float)))
+
+    filing = metrics.get("filing") if isinstance(metrics.get("filing"), dict) else {}
+    form = filing.get("form", "none") if filing.get("available") else "none"
+
+    return (
+        f"  [dim]{date}: social {on_target}/{fetched}, "
+        f"news {news_total}, 10-K {form}, signal {signal}[/dim]"
+    )
+
+
+def _build_data_quality_panel(record) -> Panel:
+    """Wrap the Data Quality lines in a compact Rich panel."""
+    return Panel(
+        _build_data_quality_text(record),
+        title="Data Quality",
+        border_style="magenta",
+        padding=(0, 1),
+    )
+
+
+def update_display(
+    layout, spinner_text=None, stats_handler=None, start_time=None, dq_record=None
+):
     # Header with welcome message
     layout["header"].update(
         Panel(
@@ -402,6 +515,9 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
         )
     )
 
+    # Data Quality panel — refreshes with the rest of the UI from the run record
+    layout["data_quality"].update(_build_data_quality_panel(dq_record))
+
     # Analysis panel showing current report
     if message_buffer.current_report:
         layout["analysis"].update(
@@ -488,11 +604,7 @@ def get_user_selections():
     )
     console.print(Align.center(welcome_box))
     console.print()
-    console.print()  # Add vertical space before announcements
-
-    # Fetch and display announcements (silent on failure)
-    announcements = fetch_announcements()
-    display_announcements(console, announcements)
+    console.print()
 
     # Create a boxed questionnaire for each step
     def create_question_box(title, prompt, default=None):
@@ -591,7 +703,7 @@ def get_user_selections():
             "(Market, Social, News, Fundamentals Analysts + Researchers + Trader)",
         )
     )
-    analyst_llm = select_analyst_llm_config()
+    analyst_llm = select_llm_config("analyst")
 
     # Step 7: Parallel execution — only asked for local providers
     _LOCAL_PROVIDERS = {"ollama", "huggingface"}
@@ -628,7 +740,7 @@ def get_user_selections():
             "(Research Manager, Portfolio Manager)",
         )
     )
-    manager_llm = select_manager_llm_config()
+    manager_llm = select_llm_config("manager")
 
     # Prefer analyst's URL (e.g. local Ollama); fall back to manager's URL.
     backend_url = analyst_llm["url"] or manager_llm["url"]
@@ -845,20 +957,8 @@ def update_research_team_status(status):
         message_buffer.update_agent_status(agent, status)
 
 
-# Ordered list of analysts for status transitions
-ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
-ANALYST_AGENT_NAMES = {
-    "market": "Market Analyst",
-    "social": "Social Analyst",
-    "news": "News Analyst",
-    "fundamentals": "Fundamentals Analyst",
-}
-ANALYST_REPORT_MAP = {
-    "market": "market_report",
-    "social": "sentiment_report",
-    "news": "news_report",
-    "fundamentals": "fundamentals_report",
-}
+# Analyst status transition constants (ANALYST_ORDER, ANALYST_AGENT_NAMES,
+# ANALYST_REPORT_MAP) are imported from tradingagents.streaming above.
 
 
 def update_analyst_statuses(message_buffer, chunk):
@@ -1301,6 +1401,14 @@ def _run_backtest_mode(selections: dict, config: dict) -> None:
                     results_table.add_row(
                         trade_date, signal, f"{confidence:.2f}", horizon, ret_str
                     )
+
+                    # One-line data-quality digest per day (degrades gracefully).
+                    console.print(
+                        _build_backtest_digest(
+                            config.get("runs_dir", "./runs"),
+                            ticker, trade_date, signal,
+                        )
+                    )
                     all_results.append({
                         "ticker":         ticker,
                         "date":           trade_date,
@@ -1355,7 +1463,7 @@ def _run_backtest_mode(selections: dict, config: dict) -> None:
     console.print("\n[bold cyan]Backtest complete![/bold cyan]\n")
 
 
-def run_analysis():
+def run_analysis(fresh: bool = False):
     # First get all user selections
     selections = get_user_selections()
 
@@ -1375,6 +1483,10 @@ def run_analysis():
     config["anthropic_effort"] = selections.get("anthropic_effort")
     config["output_language"] = selections.get("output_language", "English")
     config["parallel_analysts"] = selections.get("parallel_analysts")  # None = auto-detect
+
+    # --fresh forces re-execution instead of replaying a cached run.
+    if fresh:
+        config["reuse_cached_run"] = False
 
     # Branch: backtest modes bypass the single-day streaming path entirely.
     if selections["run_mode"] != "single":
@@ -1459,6 +1571,14 @@ def run_analysis():
 
     # Now start the display layout
     layout = create_layout()
+
+    # Data Quality panel reads the run record (cached ~1s) during live display.
+    runs_dir = config.get("runs_dir", "./runs")
+
+    def _dq():
+        return _read_run_record(
+            runs_dir, selections["ticker"], selections["analysis_date"]
+        )
 
     with Live(layout, refresh_per_second=4) as live:
         # Initial display
@@ -1602,8 +1722,11 @@ def run_analysis():
                         message_buffer.update_agent_status("Neutral Analyst", "completed")
                         message_buffer.update_agent_status("Portfolio Manager", "completed")
 
-            # Update the display
-            update_display(layout, stats_handler=stats_handler, start_time=start_time)
+            # Update the display (refresh Data Quality panel from the run record)
+            update_display(
+                layout, stats_handler=stats_handler, start_time=start_time,
+                dq_record=_dq(),
+            )
 
             trace.append(chunk)
 
@@ -1624,16 +1747,38 @@ def run_analysis():
             if section in final_state:
                 message_buffer.update_report_section(section, final_state[section])
 
-        update_display(layout, stats_handler=stats_handler, start_time=start_time)
+        update_display(
+            layout, stats_handler=stats_handler, start_time=start_time,
+            dq_record=_dq(),
+        )
 
     # Post-analysis prompts (outside Live context for clean interaction)
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
 
+    # Final Data Quality summary panel — survives after Live exits.
+    # Force a fresh read (bypass the 1s cache) so it reflects the completed run.
+    _DQ_RECORD_CACHE["key"] = None
+    final_record = _read_run_record(
+        runs_dir, selections["ticker"], selections["analysis_date"]
+    )
+    console.print(_build_data_quality_panel(final_record))
+
+    # Flag a replayed run so the user knows no LLM calls were made.
+    if getattr(graph, "_last_was_replay", False):
+        console.print(
+            "[bold yellow]Replayed cached run "
+            "(set reuse_cached_run=False or use --fresh to re-execute)[/bold yellow]"
+        )
+
     # Prompt to save report
     save_choice = typer.prompt("Save report?", default="Y").strip().upper()
     if save_choice in ("Y", "YES", ""):
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
+        # Single output tree: everything lands under results/, matching the
+        # GUI's results/{TICKER}_{date}/ scheme (no separate reports/ folder).
+        default_path = (
+            Path(config.get("results_dir", "./results"))
+            / f"{selections['ticker']}_{selections['analysis_date']}"
+        )
         save_path_str = typer.prompt(
             "Save path (press Enter for default)",
             default=str(default_path)
@@ -1653,8 +1798,15 @@ def run_analysis():
 
 
 @app.command()
-def analyze():
-    run_analysis()
+def analyze(
+    fresh: bool = typer.Option(
+        False,
+        "--fresh",
+        help="Re-execute the analysis even if a cached run exists "
+        "(sets reuse_cached_run=False).",
+    ),
+):
+    run_analysis(fresh=fresh)
 
 
 if __name__ == "__main__":

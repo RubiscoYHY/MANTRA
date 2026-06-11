@@ -434,64 +434,62 @@ def ask_gemini_thinking_config() -> str | None:
     ).ask()
 
 
-def select_analyst_llm_config() -> dict:
-    """Select analyst (quick-thinking) LLM: provider then model.
+def select_llm_config(role: str) -> dict:
+    """Select an LLM client config: provider then model, plus provider-specific params.
 
-    Analysts, Researchers, and Trader all use this client.
+    role:
+        "analyst" — quick-thinking client used by Analysts, Researchers, and Trader.
+            Returns keys: provider, model, url,
+                google_thinking_level, openai_reasoning_effort
+        "manager" — deep-thinking client used by Research Manager and Portfolio Manager.
+            Returns keys: provider, model, url,
+                anthropic_effort, google_thinking_level, openai_reasoning_effort
 
-    Returns a dict with keys: provider, model, url,
-        google_thinking_level, openai_reasoning_effort
+    The model option list differs by role (shallow vs deep), and the manager role
+    additionally asks for the Anthropic reasoning effort.
     """
+    if role not in ("analyst", "manager"):
+        raise ValueError(f"Unknown role: {role!r} (expected 'analyst' or 'manager')")
+
+    is_manager = role == "manager"
+
     provider_display, url = select_llm_provider()
-    model = select_shallow_thinking_agent(provider_display, url)
+    if is_manager:
+        model = select_deep_thinking_agent(provider_display, url)
+    else:
+        model = select_shallow_thinking_agent(provider_display, url)
 
-    google_thinking_level = None
-    openai_reasoning_effort = None
-
-    if provider_display.lower() == "google":
-        google_thinking_level = ask_gemini_thinking_config()
-    elif provider_display.lower() == "openai":
-        openai_reasoning_effort = ask_openai_reasoning_effort()
-
-    return {
-        "provider": provider_display.lower(),
-        "model": model,
-        "url": url,
-        "google_thinking_level": google_thinking_level,
-        "openai_reasoning_effort": openai_reasoning_effort,
-    }
-
-
-def select_manager_llm_config() -> dict:
-    """Select manager (deep-thinking) LLM: provider then model.
-
-    Research Manager and Portfolio Manager use this client.
-
-    Returns a dict with keys: provider, model, url,
-        anthropic_effort, google_thinking_level, openai_reasoning_effort
-    """
-    provider_display, url = select_llm_provider()
-    model = select_deep_thinking_agent(provider_display, url)
-
+    provider = provider_display.lower()
     anthropic_effort = None
     google_thinking_level = None
     openai_reasoning_effort = None
 
-    if provider_display.lower() == "anthropic":
+    # Anthropic effort is only asked for the manager (deep-thinking) client.
+    if is_manager and provider == "anthropic":
         anthropic_effort = ask_anthropic_effort()
-    elif provider_display.lower() == "google":
+    elif provider == "google":
         google_thinking_level = ask_gemini_thinking_config()
-    elif provider_display.lower() == "openai":
+    elif provider == "openai":
         openai_reasoning_effort = ask_openai_reasoning_effort()
 
-    return {
-        "provider": provider_display.lower(),
+    config = {
+        "provider": provider,
         "model": model,
         "url": url,
-        "anthropic_effort": anthropic_effort,
         "google_thinking_level": google_thinking_level,
         "openai_reasoning_effort": openai_reasoning_effort,
     }
+    if is_manager:
+        # Preserve the manager-only key (and its position before the shared params).
+        config = {
+            "provider": provider,
+            "model": model,
+            "url": url,
+            "anthropic_effort": anthropic_effort,
+            "google_thinking_level": google_thinking_level,
+            "openai_reasoning_effort": openai_reasoning_effort,
+        }
+    return config
 
 
 def ask_output_language() -> str:
